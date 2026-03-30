@@ -26,18 +26,23 @@ require_once __DIR__ . '/BaseScraper.php';
 class WalmartScraper extends BaseScraper {
     protected string $store = 'walmart';
 
-    // Search keywords to hit different deal categories
+    // Walmart deals pages to scrape via HTML (with session cookies)
+    private array $dealPages = [
+        'https://www.walmart.com/shop/deals/flash-deals',
+        'https://www.walmart.com/browse/rollback?cat_id=0&facet=special_offers%3ARollback',
+        'https://www.walmart.com/browse/electronics?facet=special_offers%3ARollback',
+        'https://www.walmart.com/browse/home-furniture-bedding/home-garden?facet=special_offers%3ARollback',
+        'https://www.walmart.com/browse/clothing?facet=special_offers%3ARollback',
+        'https://www.walmart.com/browse/toys?facet=special_offers%3ARollback',
+    ];
+
+    // Search keywords for JSON API fallback
     private array $searchQueries = [
         ['q' => 'electronics',   'facet' => 'special_offers:Rollback'],
         ['q' => 'home',          'facet' => 'special_offers:Rollback'],
         ['q' => 'clothing',      'facet' => 'special_offers:Rollback'],
         ['q' => 'toys',          'facet' => 'special_offers:Rollback'],
-        ['q' => 'sports',        'facet' => 'special_offers:Rollback'],
-        ['q' => 'kitchen',       'facet' => 'special_offers:Rollback'],
-        ['q' => 'beauty',        'facet' => 'special_offers:Rollback'],
         ['q' => 'clearance',     'facet' => 'special_offers:Clearance'],
-        ['q' => 'tools',         'facet' => 'special_offers:Rollback'],
-        ['q' => 'auto',          'facet' => 'special_offers:Rollback'],
     ];
 
     // Cookie jar — shared across requests so session cookies carry over
@@ -53,8 +58,38 @@ class WalmartScraper extends BaseScraper {
         $this->initWalmartSession();
 
         $totalCount = 0;
+
+        // Method 1: Scrape HTML deals pages with session cookies
+        // The homepage fetch sets cookies that allow accessing the deals pages.
+        $this->say("Method 1: HTML deals pages...");
+        foreach ($this->dealPages as $url) {
+            $label = str_replace('https://www.walmart.com', '', $url);
+            $this->say("Fetching: $label");
+
+            $html = $this->fetchWalmartHtml($url);
+            if (!$html) { $this->say("  → No response"); sleep(3); continue; }
+
+            // Try to parse __NEXT_DATA__ from the HTML
+            $items = $this->parseHtmlFallback($html);
+            if ($items === false || empty($items)) {
+                $this->say("  → No product data in HTML");
+                sleep(2);
+                continue;
+            }
+
+            $count = 0;
+            foreach ($items as $raw) {
+                if ($this->processWalmartItem($raw)) $count++;
+            }
+            $this->say("  → {$count} deals saved (from " . count($items) . " items)");
+            $totalCount += $count;
+            sleep(rand(3, 5));
+        }
+
+        // Method 2: JSON API as fallback
+        $this->say("Method 2: JSON search API...");
         foreach ($this->searchQueries as $query) {
-            $this->say("Querying: q={$query['q']} facet={$query['facet']}");
+            $this->say("Querying: q={$query['q']}");
 
             $items = $this->fetchWalmartJson($query['q'], $query['facet']);
             if ($items === false) {
@@ -73,7 +108,7 @@ class WalmartScraper extends BaseScraper {
         }
 
         $this->say("Total Walmart deals saved: {$totalCount}");
-        $this->logResult('success', "Walmart JSON API (saved: {$totalCount})");
+        $this->logResult('success', "Walmart (saved: {$totalCount})");
     }
 
     // ── Initialize Walmart session by visiting homepage ───────────────────────
@@ -109,6 +144,45 @@ class WalmartScraper extends BaseScraper {
         curl_close($ch);
         $this->say("  Homepage: HTTP $code (" . number_format(strlen((string)$body)) . " bytes)");
         sleep(2); // brief pause after homepage — mimic real user behaviour
+    }
+
+    // ── Fetch Walmart HTML page with session cookies ──────────────────────────
+    // Uses cookies set by initWalmartSession() to appear as a returning browser user.
+    private function fetchWalmartHtml(string $url): string|false {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            CURLOPT_COOKIEJAR      => $this->cookieJar,
+            CURLOPT_COOKIEFILE     => $this->cookieJar,
+            CURLOPT_HTTPHEADER     => [
+                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language: en-US,en;q=0.9',
+                'Accept-Encoding: gzip, deflate, br',
+                'Referer: https://www.walmart.com/',
+                'sec-ch-ua: "Google Chrome";v="125", "Chromium";v="125"',
+                'sec-ch-ua-mobile: ?0',
+                'sec-ch-ua-platform: "Windows"',
+                'Sec-Fetch-Dest: document',
+                'Sec-Fetch-Mode: navigate',
+                'Sec-Fetch-Site: same-origin',
+                'Upgrade-Insecure-Requests: 1',
+            ],
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($err)       { $this->say("  cURL: $err"); return false; }
+        if ($code >= 400) { $this->say("  HTTP $code"); return false; }
+        return $body ?: false;
     }
 
     // ── Fetch Walmart's internal JSON search API ──────────────────────────────

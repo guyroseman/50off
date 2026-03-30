@@ -46,6 +46,11 @@ class TargetScraper extends BaseScraper {
     // Target deal pages to scrape
     private array $dealPages = [
         'https://www.target.com/c/top-deals/-/N-4xw74',
+        'https://www.target.com/c/clearance/-/N-5q0et',
+        'https://www.target.com/c/electronics-deals/-/N-5fwzy',
+        'https://www.target.com/c/home-deals/-/N-5q0e4',
+        'https://www.target.com/c/clothing-deals-women/-/N-55b1f',
+        'https://www.target.com/c/toy-clearance/-/N-5q0e5',
     ];
 
     // Keywords for RedSky API search — "sale X" returns the most discounted items

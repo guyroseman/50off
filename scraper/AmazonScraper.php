@@ -33,20 +33,14 @@ class AmazonScraper extends BaseScraper
         '%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max' .
         '%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522';
 
-    // Additional category-specific deal pages — each provides a fresh ~30 deals
+    // Additional deal pages using different sort orders to get fresh deals
+    // Amazon's category paths like /deals/browse-deals/electronics aren't real URLs
+    // — they all return the same main deals page. Instead, we use different sort params.
     private array $categoryUrls = [
-        // Electronics (node 172282)
-        'https://www.amazon.com/deals/browse-deals/electronics?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
-        // Home & Kitchen
-        'https://www.amazon.com/deals/browse-deals/home-garden?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
-        // Clothing
-        'https://www.amazon.com/deals/browse-deals/apparel?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
-        // Health & Beauty
-        'https://www.amazon.com/deals/browse-deals/beauty?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
-        // Sports & Outdoors
-        'https://www.amazon.com/deals/browse-deals/sports-outdoors?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
-        // Toys & Games
-        'https://www.amazon.com/deals/browse-deals/toys-and-games?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
+        // Sort by newest deals (different from default "best deals" sort)
+        'https://www.amazon.com/deals/?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522&deals-widget=%7B%22version%22%3A1%2C%22state%22%3A%7B%22selectedSort%22%3A%22BY_SCORE%22%7D%7D',
+        // Lightning deals specifically (time-limited, different pool of products)
+        'https://www.amazon.com/deals/lightning-deals?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
     ];
 
     // ── Entry point ──────────────────────────────────────────────────────────
