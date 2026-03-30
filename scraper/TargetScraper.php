@@ -33,9 +33,14 @@ class TargetScraper extends BaseScraper {
     protected string $store = 'target';
 
     // Target's public API key (extracted from their JS bundle — rotates periodically)
-    private string $apiKey = '9f36aeafbe60771e321a7cc95a78140772ab3e96';
+    // Fallback keys to try in order if the primary fails
+    private array $apiKeys = [
+        'ff457966e64d5e877fdbad070f276d18ecec4a01',  // 2024-2025 known key
+        '9f36aeafbe60771e321a7cc95a78140772ab3e96',  // older fallback
+    ];
+    private string $apiKey = 'ff457966e64d5e877fdbad070f276d18ecec4a01';
 
-    // Store ID for pricing (1358 = Minneapolis HQ store, used for online prices)
+    // Store ID for pricing (3991 = online store)
     private int $storeId = 3991;
 
     // Target deal pages to scrape
@@ -60,6 +65,13 @@ class TargetScraper extends BaseScraper {
         $this->say("=== Target Top Deals Scraper ===");
         $this->say("Target: target.com/c/top-deals/-/N-4xw74");
 
+        // Auto-discover current API key before scraping
+        $discoveredKey = $this->discoverApiKey();
+        if ($discoveredKey && $discoveredKey !== $this->apiKey) {
+            $this->say("  ✓ Discovered API key: " . substr($discoveredKey, 0, 8) . "...");
+            $this->apiKey = $discoveredKey;
+        }
+
         // Method 1: Scrape HTML pages directly (gets __PRELOADED_STATE__ data)
         foreach ($this->dealPages as $url) {
             $this->say("Page: " . str_replace('https://www.target.com', '', $url));
@@ -71,15 +83,62 @@ class TargetScraper extends BaseScraper {
             sleep(rand(2, 4));
         }
 
-        // Method 2: RedSky API (more reliable, structured JSON)
+        // Method 2: RedSky API — try each fallback key until one works
         $this->say("Querying Target RedSky API...");
+        $apiWorked = false;
         foreach ($this->apiCategories as $cat) {
             $count = $this->queryRedSkyApi($cat['keyword']);
-            $this->say("  → {$count} deals for {$cat['cat']} ({$cat['keyword']})");
+            if ($count === -1) {
+                // API returned auth error — try next key
+                if (!$apiWorked) {
+                    $nextKey = $this->tryNextApiKey();
+                    if ($nextKey) {
+                        $this->say("  Switched to API key: " . substr($nextKey, 0, 8) . "...");
+                        $count = $this->queryRedSkyApi($cat['keyword']);
+                    }
+                }
+            }
+            if ($count >= 0) {
+                $this->say("  → {$count} deals for {$cat['cat']} ({$cat['keyword']})");
+                if ($count > 0) $apiWorked = true;
+            }
             sleep(rand(1, 3));
         }
 
         $this->logResult('success', "Target Top Deals");
+    }
+
+    // ── Discover the current API key from Target's JS bundle ─────────────────
+    private function discoverApiKey(): ?string {
+        // Target embeds the API key in their main JS config
+        $html = $this->fetch('https://www.target.com/');
+        if (!$html) return null;
+
+        // Pattern 1: JSON config with apiKey
+        if (preg_match('/"apiKey"\s*:\s*"([a-f0-9]{40})"/', $html, $m)) return $m[1];
+
+        // Pattern 2: key= parameter in script src URLs
+        if (preg_match('/[?&]key=([a-f0-9]{40})/', $html, $m)) return $m[1];
+
+        // Pattern 3: Look in their analytics/config scripts
+        if (preg_match('/["\']([a-f0-9]{40})["\']/', $html, $m)) return $m[1];
+
+        // Try their config endpoint
+        $config = $this->fetch('https://www.target.com/api/v2/config');
+        if ($config && preg_match('/"key"\s*:\s*"([a-f0-9]{40})"/', $config, $m)) return $m[1];
+
+        return null;
+    }
+
+    // ── Try the next API key in the fallback list ─────────────────────────────
+    private function tryNextApiKey(): ?string {
+        foreach ($this->apiKeys as $key) {
+            if ($key !== $this->apiKey) {
+                $this->apiKey = $key;
+                return $key;
+            }
+        }
+        return null;
     }
 
     // ── Fetch with Target-specific headers ────────────────────────────────────
@@ -243,6 +302,8 @@ class TargetScraper extends BaseScraper {
     // ── RedSky API ────────────────────────────────────────────────────────────
     // Target's own public API — requires API-specific headers (not HTML Sec-Fetch-*)
     private function queryRedSkyApi(string $keyword): int {
+        $visitorId = bin2hex(random_bytes(16)); // random visitor ID per request
+
         $params = http_build_query([
             'channel'                       => 'WEB',
             'count'                         => 24,
@@ -254,29 +315,33 @@ class TargetScraper extends BaseScraper {
             'platform'                      => 'desktop',
             'pricing_store_id'              => $this->storeId,
             'store_id'                      => $this->storeId,
-            'visitor_id'                    => 'anonymous',
+            'visitor_id'                    => $visitorId,
             'key'                           => $this->apiKey,
         ]);
 
+        // Try v1 first, then fall back to checking alternate endpoint paths
         $url = "https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2?{$params}";
         $ch  = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_TIMEOUT        => 20,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_ENCODING       => '',
-            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             CURLOPT_HTTPHEADER     => [
                 'Accept: application/json',
+                'Accept-Language: en-US,en;q=0.9',
                 'Origin: https://www.target.com',
-                'Referer: https://www.target.com/',
+                'Referer: https://www.target.com/s?searchTerm=' . urlencode($keyword),
+                'x-application-name: web',
             ],
         ]);
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         if ($code !== 200 || !$body) {
             $this->say("RedSky HTTP $code for keyword: $keyword");
-            return 0;
+            // Return -1 for auth failures so caller can try a different API key
+            return ($code === 400 || $code === 401 || $code === 403) ? -1 : 0;
         }
 
         $data = @json_decode($body, true);

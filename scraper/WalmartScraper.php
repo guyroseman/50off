@@ -2,292 +2,257 @@
 /**
  * WalmartScraper.php
  *
- * Targets: https://www.walmart.com/shop/deals/flash-deals
+ * HOW THIS WORKS:
+ * ────────────────
+ * Walmart's Next.js frontend uses a BFF (Backend For Frontend) pattern.
+ * When the browser makes XHR requests to search/browse URLs with
+ * `Accept: application/json`, the server returns structured JSON
+ * (not the full HTML page). This JSON contains product data including
+ * prices, images, and discount info — without the bot-detection layer
+ * that strips __NEXT_DATA__ from HTML responses.
  *
- * HOW WALMART'S PAGE WORKS:
- * ──────────────────────────
- * Walmart's website is built with Next.js. Every page embeds ALL product data
- * in a <script id="__NEXT_DATA__" type="application/json"> tag.
+ * We use this JSON API directly, targeting:
+ *   walmart.com/search?q=...&facet=special_offers%3ARollback
  *
- * This JSON contains the complete product grid including:
- *   - Product title
- *   - Current (sale) price
- *   - Was (original) price
- *   - Savings percentage
- *   - Product image URL (from Walmart's image CDN)
- *   - Item ID (usItemId) for building URLs
- *   - Ratings and review count
+ * Response path:
+ *   data.items[].item  → product details (name, prices, images)
+ * or:
+ *   items[].item       → same, depending on endpoint version
  *
- * The data path is typically:
- *   __NEXT_DATA__.props.pageProps.initialData.searchResult.itemStacks[].items[]
- *
- * We also try the moduleData path for some page types:
- *   __NEXT_DATA__.props.pageProps.initialData.contentLayout.modules[].configs.products[]
- *
- * Walmart images are on i5.walmartimages.com — they load fine with the proxy.
- *
- * FILTER: Only save deals with 50%+ off (wasPrice vs currentPrice).
+ * FILTER: Only save deals with 50%+ off.
  */
 require_once __DIR__ . '/BaseScraper.php';
 
 class WalmartScraper extends BaseScraper {
     protected string $store = 'walmart';
 
-    // Walmart deals pages to scrape
-    private array $dealPages = [
-        'https://www.walmart.com/shop/deals/flash-deals',
-        'https://www.walmart.com/browse/rollback?cat_id=0&facet=special_offers%3ARollback',
-        'https://www.walmart.com/browse/electronics?facet=special_offers%3ARollback',
-        'https://www.walmart.com/browse/home?facet=special_offers%3ARollback',
-        'https://www.walmart.com/browse/clothing?facet=special_offers%3ARollback',
-        'https://www.walmart.com/browse/toys?facet=special_offers%3ARollback',
+    // Search keywords to hit different deal categories
+    private array $searchQueries = [
+        ['q' => 'electronics',   'facet' => 'special_offers:Rollback'],
+        ['q' => 'home',          'facet' => 'special_offers:Rollback'],
+        ['q' => 'clothing',      'facet' => 'special_offers:Rollback'],
+        ['q' => 'toys',          'facet' => 'special_offers:Rollback'],
+        ['q' => 'sports',        'facet' => 'special_offers:Rollback'],
+        ['q' => 'kitchen',       'facet' => 'special_offers:Rollback'],
+        ['q' => 'beauty',        'facet' => 'special_offers:Rollback'],
+        ['q' => 'clearance',     'facet' => 'special_offers:Clearance'],
+        ['q' => 'tools',         'facet' => 'special_offers:Rollback'],
+        ['q' => 'auto',          'facet' => 'special_offers:Rollback'],
     ];
 
     public function scrape(): void {
-        $this->say("=== Walmart Flash Deals Scraper ===");
-        $this->say("Target: walmart.com/shop/deals/flash-deals");
+        $this->say("=== Walmart Scraper (JSON API Method) ===");
 
-        foreach ($this->dealPages as $url) {
-            $this->say("Fetching: " . str_replace('https://www.walmart.com', '', $url));
+        $totalCount = 0;
+        foreach ($this->searchQueries as $query) {
+            $this->say("Querying: q={$query['q']} facet={$query['facet']}");
 
-            $html = $this->fetchWalmartPage($url);
-            if (!$html) { $this->say("  → No response"); sleep(3); continue; }
-
-            $count = $this->parsePage($html);
-            $this->say("  → $count deals found");
-            sleep(rand(3, 5));
-        }
-
-        $this->logResult('success', "Walmart Flash Deals");
-    }
-
-    // ── Fetch with Walmart-specific headers ───────────────────────────────────
-    private function fetchWalmartPage(string $url): string|false {
-        return $this->fetch($url, [
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language: en-US,en;q=0.9',
-            'sec-ch-ua: "Chromium";v="124", "Google Chrome";v="124"',
-            'sec-ch-ua-mobile: ?0',
-            'sec-fetch-dest: document',
-            'sec-fetch-mode: navigate',
-            'sec-fetch-site: none',
-        ], 'https://www.walmart.com/');
-    }
-
-    // ── Parse the page ────────────────────────────────────────────────────────
-    private function parsePage(string $html): int {
-        $count = 0;
-
-        // ── PRIMARY METHOD: Extract __NEXT_DATA__ JSON ────────────────────
-        // Walmart embeds ALL product data here. The script tag may have extra
-        // attributes (e.g. nonce="...") so we locate it positionally rather
-        // than with a strict regex.
-        $scriptPos = strpos($html, 'script id="__NEXT_DATA__"');
-        if ($scriptPos !== false) {
-            $jsonStart = strpos($html, '>', $scriptPos) + 1;
-            $jsonEnd   = strpos($html, '</script>', $jsonStart);
-            $nextData  = @json_decode(substr($html, $jsonStart, $jsonEnd - $jsonStart), true);
-            if ($nextData) {
-                $count += $this->processNextData($nextData);
-                if ($count > 0) return $count;
+            $items = $this->fetchWalmartJson($query['q'], $query['facet']);
+            if ($items === false) {
+                $this->say("  → Failed to get JSON response");
+                sleep(3);
+                continue;
             }
+
+            $count = 0;
+            foreach ($items as $raw) {
+                if ($this->processWalmartItem($raw)) $count++;
+            }
+            $this->say("  → {$count} deals saved (from " . count($items) . " items)");
+            $totalCount += $count;
+            sleep(rand(2, 4));
         }
 
-        // ── FALLBACK: Parse HTML directly ─────────────────────────────────
-        $count += $this->parseHtmlFallback($html);
-        return $count;
+        $this->say("Total Walmart deals saved: {$totalCount}");
+        $this->logResult('success', "Walmart JSON API (saved: {$totalCount})");
     }
 
-    // ── Process __NEXT_DATA__ JSON ────────────────────────────────────────────
-    private function processNextData(array $data): int {
-        $count = 0;
+    // ── Fetch Walmart's internal JSON search API ──────────────────────────────
+    // When called with Accept: application/json, Walmart's Next.js server returns
+    // a JSON payload instead of an HTML page. This bypasses the __NEXT_DATA__
+    // stripping that affects HTML-based scraping from datacenter IPs.
+    private function fetchWalmartJson(string $keyword, string $facet = ''): array|false {
+        $params = [
+            'q'         => $keyword,
+            'sortBy'    => 'Best_Seller',
+            'numItems'  => 40,
+            'page'      => 1,
+        ];
+        if ($facet) $params['facet'] = $facet;
 
-        // Walmart uses several possible paths for product data
-        $productPaths = [
-            // Standard search/browse result
-            ['props','pageProps','initialData','searchResult','itemStacks'],
-            // Deals/flash deals page
-            ['props','pageProps','initialData','contentLayout','modules'],
-            // Alternative path
-            ['props','pageProps','initialData','searchResult','searchResult','itemStacks'],
-            // Category page
-            ['props','pageProps','initialData','categoryContent','modules'],
+        $url = 'https://www.walmart.com/search?' . http_build_query($params);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 25,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            CURLOPT_HTTPHEADER     => [
+                'Accept: application/json, text/plain, */*',
+                'Accept-Language: en-US,en;q=0.5',
+                'Accept-Encoding: gzip, deflate, br',
+                'Referer: https://www.walmart.com/',
+                'X-Requested-With: XMLHttpRequest',
+                'x-o-platform: rweb',
+                'x-o-bu: WALMART-US',
+                'x-o-gm-source: desktop',
+                'wm_mp: true',
+                'sec-ch-ua: "Chromium";v="124", "Google Chrome";v="124"',
+                'sec-ch-ua-mobile: ?0',
+                'Sec-Fetch-Dest: empty',
+                'Sec-Fetch-Mode: cors',
+                'Sec-Fetch-Site: same-origin',
+            ],
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($err)       { $this->say("  cURL: $err"); return false; }
+        if ($code !== 200) { $this->say("  HTTP $code"); return false; }
+        if (!$body)     { return false; }
+
+        // If the response starts with HTML (<), we got the bot-challenge page
+        $trimmed = ltrim($body);
+        if (str_starts_with($trimmed, '<')) {
+            $this->say("  → Got HTML (not JSON) — trying __NEXT_DATA__ parse");
+            return $this->parseHtmlFallback($body);
+        }
+
+        $data = @json_decode($body, true);
+        if (!$data) { $this->say("  → JSON decode failed"); return false; }
+
+        // Extract items from various possible paths
+        return $this->extractItemsFromJson($data);
+    }
+
+    // ── Extract items array from Walmart's JSON response ──────────────────────
+    private function extractItemsFromJson(array $data): array {
+        // Try multiple known paths in Walmart's JSON response
+        $candidates = [
+            $data['items']                                                          ?? [],
+            $data['data']['items']                                                  ?? [],
+            $data['searchResult']['itemStacks'][0]['items']                         ?? [],
+            $data['props']['pageProps']['initialData']['searchResult']['itemStacks'][0]['items'] ?? [],
         ];
 
-        $allItems = [];
-
-        foreach ($productPaths as $path) {
-            $node = $data;
-            foreach ($path as $key) {
-                $node = $node[$key] ?? null;
-                if (!$node) break;
+        // Also handle itemStacks array format
+        if (!empty($data['searchResult']['itemStacks'])) {
+            foreach ($data['searchResult']['itemStacks'] as $stack) {
+                $candidates[] = $stack['items'] ?? [];
             }
-            if (!$node) continue;
-
-            // itemStacks is an array of stacks, each with items
-            if (isset($node[0]['items'])) {
-                foreach ($node as $stack) {
-                    $allItems = array_merge($allItems, $stack['items'] ?? []);
-                }
-                break;
-            }
-            // modules path — each module may have configs.products
-            elseif (isset($node[0]['type'])) {
-                foreach ($node as $module) {
-                    $products = $module['configs']['products']         ??
-                                $module['configs']['items']            ??
-                                $module['moduleData']['products']      ??
-                                $module['moduleData']['items']         ?? [];
-                    $allItems = array_merge($allItems, $products);
-                }
-                break;
+        }
+        if (!empty($data['data']['searchResult']['itemStacks'])) {
+            foreach ($data['data']['searchResult']['itemStacks'] as $stack) {
+                $candidates[] = $stack['items'] ?? [];
             }
         }
 
-        foreach ($allItems as $item) {
-            if ($this->processWalmartItem($item)) $count++;
+        foreach ($candidates as $list) {
+            if (!empty($list) && is_array($list)) {
+                return $list;
+            }
         }
-        return $count;
+        return [];
+    }
+
+    // ── HTML fallback: parse __NEXT_DATA__ if we get HTML back ───────────────
+    private function parseHtmlFallback(string $html): array|false {
+        $pos = strpos($html, 'script id="__NEXT_DATA__"');
+        if ($pos === false) return false;
+
+        $jsonStart = strpos($html, '>', $pos) + 1;
+        $jsonEnd   = strpos($html, '</script>', $jsonStart);
+        $nextData  = @json_decode(substr($html, $jsonStart, $jsonEnd - $jsonStart), true);
+        if (!$nextData) return false;
+
+        $items = $this->extractItemsFromJson($nextData);
+        return $items ?: false;
     }
 
     // ── Process a single Walmart product item ─────────────────────────────────
-    private function processWalmartItem(array $item): bool {
+    private function processWalmartItem(array $raw): bool {
+        // Walmart JSON API wraps items in an 'item' key
+        $item = $raw['item'] ?? $raw;
+
         // Title
-        $title = $item['name'] ?? $item['title'] ?? '';
+        $title = $item['name'] ?? $item['title'] ?? $raw['name'] ?? '';
         if (!$title || strlen($title) < 3) return false;
 
         // Item ID for URL
-        $itemId = $item['usItemId'] ?? $item['itemId'] ?? $item['id'] ?? null;
+        $itemId = $item['usItemId'] ?? $item['itemId'] ?? $item['id']
+               ?? $raw['usItemId'] ?? $raw['itemId']  ?? null;
         if (!$itemId) return false;
 
         // ── Price extraction ────────────────────────────────────────────────
-        // Walmart's current __NEXT_DATA__ structure (verified 2026):
-        //   item['price']          → numeric sale price  (e.g. 193.99)
-        //   priceInfo['wasPrice']  → string orig price   (e.g. "$399.99")
-        //   priceInfo['savingsAmt']→ numeric dollar savings (e.g. 206)
-        $priceInfo = $item['priceInfo'] ?? [];
+        $priceInfo = $item['priceInfo'] ?? $raw['priceInfo'] ?? [];
 
-        $sale = (float)($item['price'] ?? $priceInfo['minPrice'] ?? 0);
-
-        // wasPrice is a formatted string like "$399.99" — strip non-numeric chars
-        $origRaw = $priceInfo['wasPrice'] ?? '';
+        $sale    = (float)($item['price']           ?? $priceInfo['minPrice']   ?? $raw['price'] ?? 0);
+        $origRaw = $priceInfo['wasPrice']            ?? $priceInfo['listPrice']  ?? '';
         $orig    = $origRaw ? $this->parsePrice((string)$origRaw) : 0.0;
 
-        // Savings amount lets us derive orig if wasPrice is missing
-        $savingsAmt = (float)($priceInfo['savingsAmt'] ?? 0);
+        $savingsAmt = (float)($priceInfo['savingsAmt'] ?? $priceInfo['savings'] ?? 0);
         if ($orig <= 0 && $sale > 0 && $savingsAmt > 0) {
             $orig = round($sale + $savingsAmt, 2);
         }
 
-        $pct = 0;
+        // Savings percentage from API
+        $pct = (int)($priceInfo['savingsPercent'] ?? $priceInfo['percentOff'] ?? 0);
 
         if ($sale <= 0) return false;
 
-        // Derive orig from pct if missing
+        // Derive orig from pct
         if ($orig <= $sale && $pct >= 50 && $sale > 0) {
             $orig = round($sale / (1 - $pct / 100), 2);
         }
-
-        // Calc pct if we have both prices
+        // Calc pct
         if ($pct < 50 && $orig > $sale && $sale > 0) {
             $pct = $this->calcDiscount($orig, $sale);
         }
 
-        // Only keep 50%+ deals
         if ($pct < 50 || $orig <= $sale) return false;
 
         // ── Image ──────────────────────────────────────────────────────────
-        // Walmart images: https://i5.walmartimages.com/asr/UUID.jpg
-        $image = null;
-        $imgInfo = $item['imageInfo'] ?? $item['image'] ?? null;
+        $image    = null;
+        $imgInfo  = $item['imageInfo'] ?? $item['image'] ?? $raw['imageInfo'] ?? null;
         if (is_array($imgInfo)) {
-            $image = $imgInfo['thumbnailUrl'] ??
-                     $imgInfo['url']          ??
-                     ($imgInfo['allImages'][0]['url'] ?? null);
+            $image = $imgInfo['thumbnailUrl'] ?? $imgInfo['url']
+                  ?? ($imgInfo['allImages'][0]['url'] ?? null);
         } elseif (is_string($imgInfo)) {
             $image = $imgInfo;
         }
 
         // ── Rating ─────────────────────────────────────────────────────────
         $ratingInfo  = $item['ratingsReviews'] ?? $item['rating'] ?? [];
-        $rating      = is_array($ratingInfo) ? (float)($ratingInfo['averageStarRating'] ?? $ratingInfo['rating'] ?? 0) : (float)$ratingInfo;
+        $rating      = is_array($ratingInfo)
+            ? (float)($ratingInfo['averageStarRating'] ?? $ratingInfo['rating'] ?? 0)
+            : (float)$ratingInfo;
         $reviewCount = is_array($ratingInfo) ? (int)($ratingInfo['numberOfReviews'] ?? 0) : 0;
 
-        // ── Build clean product URL ─────────────────────────────────────────
-        $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', substr($title, 0, 50)));
-        $slug = trim($slug, '-');
-        $productUrl  = "https://www.walmart.com/ip/{$slug}/{$itemId}";
-        $affiliateUrl = $productUrl; // Add your Walmart affiliate params here
+        // ── URL ────────────────────────────────────────────────────────────
+        $slug       = strtolower(preg_replace('/[^a-z0-9]+/i', '-', substr($title, 0, 50)));
+        $slug       = trim($slug, '-');
+        $productUrl = "https://www.walmart.com/ip/{$slug}/{$itemId}";
 
         return $this->saveDeal([
             'title'          => trim($title),
-            'description'    => isset($item['shortDescription']) ? strip_tags($item['shortDescription']) : null,
+            'description'    => isset($item['shortDescription'])
+                                    ? strip_tags($item['shortDescription']) : null,
             'original_price' => $orig,
             'sale_price'     => $sale,
             'discount_pct'   => $pct,
             'image_url'      => $image,
             'product_url'    => $productUrl,
-            'affiliate_url'  => $affiliateUrl,
-            'category'       => $this->mapCategory($title . ' ' . ($item['category']['path'] ?? '')),
+            'affiliate_url'  => $productUrl,
+            'category'       => $this->mapCategory($title),
             'rating'         => $rating > 0 ? $rating : null,
             'review_count'   => $reviewCount,
         ]);
-    }
-
-    // ── HTML fallback parser ──────────────────────────────────────────────────
-    private function parseHtmlFallback(string $html): int {
-        $count = 0;
-        $xpath = $this->loadDom($html);
-        if (!$xpath) return 0;
-
-        // Walmart product tiles in search results
-        $tiles = $xpath->query('//*[@data-item-id or contains(@class,"search-result-gridview-item") or contains(@class,"Grid-col")]');
-
-        foreach ($tiles as $tile) {
-            /** @var \DOMElement $tile */
-            $itemId = $tile->getAttribute('data-item-id');
-            if (!$itemId) {
-                $links = $xpath->query('.//a[contains(@href,"/ip/")]', $tile);
-                if ($links->length > 0) {
-                    /** @var \DOMElement $link */
-                    $link = $links->item(0);
-                    preg_match('|/ip/[^/]+/(\d+)|', $link->getAttribute('href'), $m);
-                    $itemId = $m[1] ?? null;
-                }
-            }
-            if (!$itemId) continue;
-
-            $title = trim($xpath->evaluate('string(.//*[contains(@class,"product-title") or contains(@class,"f6") or contains(@class,"f7")])', $tile));
-            if (!$title) continue;
-
-            $saleText = $xpath->evaluate('string(.//*[contains(@class,"price-characteristic") or contains(@class,"w_iUH")])', $tile);
-            $origText = $xpath->evaluate('string(.//*[contains(@class,"price-old") or contains(@class,"was-price") or contains(@class,"line-through")])', $tile);
-            $pctText  = $xpath->evaluate('string(.//*[contains(@class,"flag-reduced") or contains(@class,"percent-off") or contains(text(),"%") and contains(text(),"off")])', $tile);
-
-            $sale = $this->parsePrice($saleText);
-            $orig = $this->parsePrice($origText);
-            $pct  = 0;
-            if (preg_match('/(\d+)\s*%/', $pctText, $pm)) $pct = (int)$pm[1];
-
-            if ($sale <= 0) continue;
-            if ($pct < 50 && $orig > $sale) $pct = $this->calcDiscount($orig, $sale);
-            if ($pct < 50) continue;
-            if ($orig <= $sale) $orig = round($sale / (1 - $pct/100), 2);
-
-            $imgSrc = $xpath->evaluate('string(.//img/@src)', $tile);
-
-            $this->saveDeal([
-                'title'          => $title,
-                'original_price' => $orig,
-                'sale_price'     => $sale,
-                'discount_pct'   => $pct,
-                'image_url'      => $imgSrc ?: null,
-                'product_url'    => "https://www.walmart.com/ip/{$itemId}",
-                'affiliate_url'  => "https://www.walmart.com/ip/{$itemId}",
-                'category'       => $this->mapCategory($title),
-            ]);
-            $count++;
-        }
-        return $count;
     }
 }

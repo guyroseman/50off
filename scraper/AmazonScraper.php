@@ -88,10 +88,7 @@ class AmazonScraper extends BaseScraper
 
             // Reuse the resource URL from the JSON, only swapping startIndex
             $apiUrl  = $this->buildPaginationUrl($resourceUrl, $nextIndex);
-            $apiResp = $this->fetchAmazonPage($apiUrl, [
-                'Accept: application/json',
-                'X-Requested-With: XMLHttpRequest',
-            ]);
+            $apiResp = $this->fetchAmazonApi($apiUrl); // dedicated JSON fetch (no HTML headers)
 
             if (!$apiResp) {
                 $this->say('  ✗ API request failed. Stopping pagination.');
@@ -130,43 +127,45 @@ class AmazonScraper extends BaseScraper
      */
     private function extractMountWidgetJson(string $html): array|false
     {
-        // Find the mountWidget call — Amazon changes slot IDs frequently.
-        // Scan for any mountWidget call that contains rankedPromotions data.
-        if (!preg_match("/assets\.mountWidget\('([^']+)',/", $html, $slotMatch)) {
-            $this->say('  ✗ mountWidget marker not found in HTML');
+        // Find ALL mountWidget calls and pick the one with rankedPromotions
+        preg_match_all("/assets\.mountWidget\('([^']+)',/", $html, $slotMatches);
+        $slots = $slotMatches[1] ?? [];
+
+        if (empty($slots)) {
+            $this->say('  ✗ No mountWidget calls found in HTML');
             return false;
         }
 
-        $marker = "assets.mountWidget('{$slotMatch[1]}',";
-        $pos    = strpos($html, $marker);
-        $this->say("  Using slot: {$slotMatch[1]}");
+        $this->say('  Found slots: ' . implode(', ', $slots));
 
-        if ($pos === false) {
-            $this->say('  ✗ mountWidget position not found');
-            return false;
+        foreach ($slots as $slot) {
+            $marker = "assets.mountWidget('{$slot}',";
+            $pos    = strpos($html, $marker);
+            if ($pos === false) continue;
+
+            $start = strpos($html, '{', $pos + strlen($marker));
+            if ($start === false) continue;
+
+            $jsonStr = $this->extractBalancedJson($html, $start);
+            if (!$jsonStr) continue;
+
+            $decoded = json_decode($jsonStr, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $cleaned = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $jsonStr);
+                $decoded = json_decode($cleaned, true);
+                if (json_last_error() !== JSON_ERROR_NONE) continue;
+            }
+
+            // Check if this slot has rankedPromotions
+            $promotions = $decoded['prefetchedData']['entity']['rankedPromotions'] ?? null;
+            if ($promotions !== null) {
+                $this->say("  Using slot: {$slot} ✓ (has rankedPromotions)");
+                return $decoded;
+            }
         }
 
-        // Advance past the marker to the opening `{`
-        $start = strpos($html, '{', $pos + strlen($marker));
-        if ($start === false) return false;
-
-        // Walk forward counting braces to find matching `}`
-        $jsonStr = $this->extractBalancedJson($html, $start);
-        if (!$jsonStr) {
-            $this->say('  ✗ Could not extract balanced JSON from mountWidget');
-            return false;
-        }
-
-        $decoded = json_decode($jsonStr, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->say('  ✗ JSON decode error: ' . json_last_error_msg());
-            // Try cleaning up common issues
-            $cleaned = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $jsonStr);
-            $decoded = json_decode($cleaned, true);
-            if (json_last_error() !== JSON_ERROR_NONE) return false;
-        }
-
-        return $decoded;
+        $this->say('  ✗ No slot found with rankedPromotions data');
+        return false;
     }
 
     /**
@@ -451,10 +450,62 @@ class AmazonScraper extends BaseScraper
         // resourceUrl is a relative path like /api/marketplaces/ATVPDKIKX0DER/promotions?...
         $full = 'https://www.amazon.com' . $resourceUrl;
 
-        // Replace startIndex=N with the new offset
-        $full = preg_replace('/startIndex=\d+/', 'startIndex=' . $startIndex, $full);
+        // Replace startIndex=N with the new offset; add it if not present
+        if (str_contains($full, 'startIndex=')) {
+            $full = preg_replace('/startIndex=\d+/', 'startIndex=' . $startIndex, $full);
+        } else {
+            $full .= (str_contains($full, '?') ? '&' : '?') . 'startIndex=' . $startIndex;
+        }
 
         return $full;
+    }
+
+    /**
+     * Fetch Amazon's internal JSON API endpoint.
+     * Uses minimal CORS-style headers instead of the full HTML browser headers,
+     * which is what the API expects (HTML headers cause 404 on pagination endpoints).
+     */
+    private function fetchAmazonApi(string $url): string|false
+    {
+        if (!$this->cookieJar) {
+            $this->cookieJar = tempnam(sys_get_temp_dir(), '50off_amz_');
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            CURLOPT_REFERER        => 'https://www.amazon.com/deals/',
+            CURLOPT_COOKIEJAR      => $this->cookieJar,
+            CURLOPT_COOKIEFILE     => $this->cookieJar,
+            CURLOPT_HTTPHEADER     => [
+                'Accept: application/json, text/plain, */*',
+                'Accept-Language: en-US,en;q=0.9',
+                'Accept-Encoding: gzip, deflate, br',
+                'X-Requested-With: XMLHttpRequest',
+                'sec-ch-ua: "Google Chrome";v="125", "Chromium";v="125", "Not-A.Brand";v="99"',
+                'sec-ch-ua-mobile: ?0',
+                'sec-ch-ua-platform: "Windows"',
+                'Sec-Fetch-Dest: empty',
+                'Sec-Fetch-Mode: cors',
+                'Sec-Fetch-Site: same-origin',
+            ],
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($err)       { $this->say("  API cURL error: $err"); return false; }
+        if ($code >= 400) { $this->say("  API HTTP $code"); return false; }
+        return $body ?: false;
     }
 
     // ── HTTP helper ──────────────────────────────────────────────────────────
