@@ -30,6 +30,7 @@ require_once __DIR__ . '/SeedScraper.php';
 require_once __DIR__ . '/AmazonScraper.php';
 require_once __DIR__ . '/WalmartScraper.php';
 require_once __DIR__ . '/TargetScraper.php';
+require_once __DIR__ . '/RssDealScraper.php';
 
 $line = str_repeat('═', 60);
 echo "\n$line\n 50OFF Scraper — " . date('Y-m-d H:i:s') . "\n$line\n\n";
@@ -41,7 +42,8 @@ $run = match($requested) {
     'amazon'  => ['amazon'],
     'walmart' => ['walmart'],
     'target'  => ['target'],
-    default   => ['amazon', 'walmart', 'target'],   // 'all' or no arg → run all 3
+    'rss'     => ['rss'],
+    default   => ['amazon', 'rss', 'walmart', 'target'],   // 'all' or no arg → run all
 };
 
 // ── DB setup ─────────────────────────────────────────────────────────────────
@@ -61,6 +63,7 @@ echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n\n";
 $scrapers = [
     'seed'    => fn() => new SeedScraper(),
     'amazon'  => fn() => new AmazonScraper(),
+    'rss'     => fn() => new RssDealScraper(),
     'walmart' => fn() => new WalmartScraper(),
     'target'  => fn() => new TargetScraper(),
 ];
@@ -82,6 +85,8 @@ foreach ($run as $name) {
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
+// Reconnect in case MySQL dropped the connection during long scraping
+try { $db->query("SELECT 1"); } catch (\PDOException) { $db = getDB(); }
 $after = (int)$db->query("SELECT COUNT(*) FROM deals WHERE is_active=1")->fetchColumn();
 $rows  = $db->query("
     SELECT store,

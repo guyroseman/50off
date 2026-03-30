@@ -164,25 +164,109 @@ class TargetScraper extends BaseScraper {
         $count = 0;
 
         // ── PRIMARY: Extract __TGT_DATA__ (current Target format, 2026+) ─
-        if (preg_match('/__TGT_DATA__.*?value:\s*deepFreeze\(JSON\.parse\("(.*?)"\)\)/s', $html, $m)) {
-            $json  = stripcslashes($m[1]);
-            $state = @json_decode($json, true);
-            if ($state) {
-                $count += $this->processPreloadedState($state);
-                if ($count > 0) return $count;
+        // Format: __TGT_DATA__': {..., value: deepFreeze(JSON.parse("ESCAPED_JSON"))
+        // The JSON string contains \" escapes — we extract char-by-char to handle them.
+        $tgtPos = strpos($html, '__TGT_DATA__');
+        if ($tgtPos !== false) {
+            $marker = 'deepFreeze(JSON.parse("';
+            $mPos   = strpos($html, $marker, $tgtPos);
+            if ($mPos !== false) {
+                $start   = $mPos + strlen($marker);
+                $jsonStr = '';
+                $len     = strlen($html);
+                for ($i = $start; $i < $len; $i++) {
+                    if ($html[$i] === '\\' && $i + 1 < $len) {
+                        $jsonStr .= $html[$i] . $html[$i + 1];
+                        $i++;
+                    } elseif ($html[$i] === '"') {
+                        break;
+                    } else {
+                        $jsonStr .= $html[$i];
+                    }
+                }
+                $state = @json_decode(stripcslashes($jsonStr), true);
+                if ($state) {
+                    $count += $this->processTgtData($state);
+                    if ($count > 0) return $count;
+                }
             }
         }
 
-        // ── FALLBACK: Legacy __PRELOADED_STATE__ ─────────────────────────
-        if (preg_match('/window\.__PRELOADED_STATE__\s*=\s*({[\s\S]+?})\s*;?\s*<\/script>/m', $html, $m)) {
-            $state = @json_decode($m[1], true);
-            if ($state) {
-                $count += $this->processPreloadedState($state);
-                if ($count > 0) return $count;
+        // ── FALLBACK: __NEXT_DATA__ (Target embeds this too) ─────────────
+        $ndPos = strpos($html, 'script id="__NEXT_DATA__"');
+        if ($ndPos !== false) {
+            $jsonStart = strpos($html, '>', $ndPos) + 1;
+            $jsonEnd   = strpos($html, '</script>', $jsonStart);
+            $nextData  = @json_decode(substr($html, $jsonStart, $jsonEnd - $jsonStart), true);
+            if ($nextData) {
+                $count += $this->processPreloadedState($nextData);
             }
         }
 
         return $count;
+    }
+
+    // ── Process Target's __TGT_DATA__ (React Query preloaded queries format) ──
+    private function processTgtData(array $state): int {
+        $count = 0;
+
+        // __TGT_DATA__ stores React Query cache under __PRELOADED_QUERIES__.queries
+        // Each entry is [[queryKey, params], data] format
+        $queries = $state['__PRELOADED_QUERIES__']['queries'] ?? [];
+        foreach ($queries as $entry) {
+            if (!is_array($entry) || count($entry) < 2) continue;
+            $data = $entry[1] ?? null;
+            if (!is_array($data)) continue;
+
+            // Look for product arrays at any depth within this query's data
+            $found = $this->findProductsInData($data);
+            foreach ($found as $item) {
+                if ($this->processTargetProduct($item)) $count++;
+            }
+        }
+
+        // Also try standard preloaded state paths
+        if ($count === 0) {
+            $count += $this->processPreloadedState($state);
+        }
+
+        return $count;
+    }
+
+    // ── Recursively find product arrays in Target's nested data ───────────────
+    private function findProductsInData(array $data, int $depth = 0): array {
+        if ($depth > 5) return []; // prevent infinite recursion
+
+        $products = [];
+
+        // Check if this looks like a product (has tcin or title)
+        if (isset($data['tcin']) || (isset($data['item']['tcin']))) {
+            return [$data];
+        }
+
+        // Known Target product list paths
+        foreach (['products', 'items', 'Item', 'product_summaries'] as $key) {
+            if (isset($data[$key]) && is_array($data[$key])) {
+                foreach ($data[$key] as $item) {
+                    if (is_array($item) && (isset($item['tcin']) || isset($item['item']['tcin']))) {
+                        $products[] = $item;
+                    }
+                }
+                if (!empty($products)) return $products;
+            }
+        }
+
+        // Recurse into nested arrays (limited depth)
+        foreach ($data as $val) {
+            if (is_array($val) && !empty($val)) {
+                $found = $this->findProductsInData($val, $depth + 1);
+                if (!empty($found)) {
+                    $products = array_merge($products, $found);
+                }
+            }
+        }
+
+        return $products;
     }
 
     // ── Process Target __PRELOADED_STATE__ ────────────────────────────────────
