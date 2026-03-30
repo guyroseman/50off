@@ -1,0 +1,356 @@
+<?php
+/**
+ * AmazonScraper.php
+ *
+ * Targets: https://www.amazon.com/s?rh=n%3A2235625011%2Cp_n_deal_type%3A23566064011
+ * This is Amazon's "Today's Deals" filtered search — shows all active deals.
+ *
+ * HOW AMAZON'S PAGE WORKS:
+ * ─────────────────────────
+ * Amazon's search/deals pages embed product data in TWO ways:
+ *
+ * 1. <div data-component-type="s-search-result" data-asin="XXXXXXXXXX">
+ *    Each product card has the ASIN and structured data attributes.
+ *
+ * 2. <script type="a-state" data-a-state='{"key":"..."}'>{"...JSON..."}</script>
+ *    Amazon embeds JSON state data in script tags.
+ *
+ * 3. window.__PRELOADED_STATE__ — Next.js state object with all product data.
+ *
+ * For prices, Amazon encodes them as:
+ *   <span class="a-price-whole">49</span><span class="a-price-fraction">99</span>
+ *   <span class="a-offscreen">$49.99</span>  ← most reliable
+ *
+ * For discount badges:
+ *   <span class="a-badge-text">-67%</span>  or  <span>Save 67%</span>
+ *
+ * PAGINATION: Amazon uses &page=2, &page=3 etc.
+ * We scrape pages 1-5 to get ~60-100 deals per run.
+ *
+ * IMAGE URLS: Amazon images follow pattern:
+ *   https://m.media-amazon.com/images/I/{ImageId}._AC_SL500_.jpg
+ *   We extract ImageId from the img tag and construct a clean URL.
+ */
+require_once __DIR__ . '/BaseScraper.php';
+
+class AmazonScraper extends BaseScraper {
+    protected string $store = 'amazon';
+    private string   $tag   = '50off-20'; // Amazon Associates tag
+
+    // The exact URL the user specified — Amazon deals with 50%+ filter
+    private string $baseUrl = 'https://www.amazon.com/s?rh=n%3A2235625011%2Cp_n_deal_type%3A23566064011';
+
+    // Additional deal pages to maximize coverage
+    private array $dealUrls = [
+        // Main deals page (all categories)
+        'https://www.amazon.com/s?rh=n%3A2235625011%2Cp_n_deal_type%3A23566064011&s=discount-rank',
+        // Gold Box deals (lightning + daily)
+        'https://www.amazon.com/gp/goldbox',
+        // Electronics deals specifically
+        'https://www.amazon.com/s?rh=n%3A172282%2Cp_n_deal_type%3A23566064011&s=discount-rank',
+        // Home & Kitchen deals
+        'https://www.amazon.com/s?rh=n%3A1055398%2Cp_n_deal_type%3A23566064011&s=discount-rank',
+        // Clothing deals
+        'https://www.amazon.com/s?rh=n%3A7141123011%2Cp_n_deal_type%3A23566064011&s=discount-rank',
+        // Toys deals
+        'https://www.amazon.com/s?rh=n%3A165793011%2Cp_n_deal_type%3A23566064011&s=discount-rank',
+    ];
+
+    public function scrape(): void {
+        $this->say("=== Amazon Today's Deals Scraper ===");
+        $this->say("Target: amazon.com/s?rh=n:2235625011 (Today's Deals)");
+
+        foreach ($this->dealUrls as $url) {
+            // Scrape multiple pages per URL
+            for ($page = 1; $page <= 4; $page++) {
+                $pageUrl = $url . ($page > 1 ? "&page=$page" : '');
+                $this->say("Page $page: " . parse_url($url, PHP_URL_QUERY));
+
+                $html = $this->fetchAmazonPage($pageUrl);
+                if (!$html) {
+                    $this->say("  → No response, skipping");
+                    break;
+                }
+
+                $count = $this->parsePage($html);
+                $this->say("  → Found $count deals on page $page");
+
+                if ($count === 0) break; // No more results
+                sleep(rand(2, 4)); // Random delay to avoid rate limiting
+            }
+            sleep(rand(3, 6));
+        }
+
+        $this->logResult('success', 'Amazon Today\'s Deals');
+    }
+
+    // ── Fetch with Amazon-specific headers ───────────────────────────────────
+    private function fetchAmazonPage(string $url): string|false {
+        return $this->fetch($url, [
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language: en-US,en;q=0.9',
+            'sec-ch-ua: "Chromium";v="124", "Google Chrome";v="124"',
+            'sec-ch-ua-mobile: ?0',
+            'sec-ch-ua-platform: "Windows"',
+        ], 'https://www.amazon.com/');
+    }
+
+    // ── Parse a deals page ────────────────────────────────────────────────────
+    private function parsePage(string $html): int {
+        $count = 0;
+
+        // ── Method 1: Parse embedded JSON state data ──────────────────────
+        // Amazon puts product data in <script type="a-state"> tags
+        if (preg_match_all(
+            '/<script[^>]+type="a-state"[^>]*data-a-state=\'[^\']*\'[^>]*>\s*(\{.+?\})\s*<\/script>/si',
+            $html, $stateMatches
+        )) {
+            foreach ($stateMatches[1] as $json) {
+                $data = @json_decode($json, true);
+                if (!$data) continue;
+                if (isset($data['products']) || isset($data['dealItems'])) {
+                    $items = $data['products'] ?? $data['dealItems'] ?? [];
+                    foreach ($items as $item) {
+                        if ($this->processJsonItem($item)) $count++;
+                    }
+                }
+            }
+        }
+
+        // ── Method 2: Parse search result divs (most reliable) ────────────
+        $xpath = $this->loadDom($html);
+        if (!$xpath) return $count;
+
+        // Amazon search result cards: data-component-type="s-search-result"
+        $cards = $xpath->query('//*[@data-component-type="s-search-result"]');
+        foreach ($cards as $card) {
+            if ($this->parseSearchCard($card, $xpath)) $count++;
+        }
+
+        // ── Method 3: Gold Box / Deals grid items ─────────────────────────
+        // Gold box uses different markup
+        $dealTiles = $xpath->query('//*[contains(@class,"GB-M-DEALTYPE") or contains(@class,"dealTile") or contains(@id,"dealTile")]');
+        foreach ($dealTiles as $tile) {
+            if ($this->parseGoldBoxTile($tile, $xpath)) $count++;
+        }
+
+        return $count;
+    }
+
+    // ── Parse a standard Amazon search result card ────────────────────────────
+    private function parseSearchCard(\DOMElement $card, \DOMXPath $xpath): bool {
+        $asin = $card->getAttribute('data-asin');
+        if (!$asin || strlen($asin) !== 10) return false;
+
+        // Title — try multiple selectors
+        $title = $this->xpathText($xpath, [
+            './/*[@data-cy="title-recipe"]//h2//span',
+            './/*[contains(@class,"a-size-medium") and contains(@class,"a-color-base") and contains(@class,"a-text-normal")]',
+            './/*[contains(@class,"a-size-base-plus") and contains(@class,"a-color-base")]',
+            './/h2//span',
+            './/h2',
+        ], $card);
+        if (!$title || strlen($title) < 3) return false;
+
+        // ── Discount percentage ────────────────────────────────────────────
+        $pct = 0;
+
+        // "-67%" badge (most common on deals page)
+        $badgeText = $this->xpathText($xpath, [
+            './/*[contains(@class,"a-badge-text")]',
+            './/*[contains(@class,"s-coupon-unclipped")]//span',
+            './/*[contains(@class,"dealBadge")]//span',
+        ], $card);
+        if ($badgeText && preg_match('/(\d+)/', $badgeText, $m)) $pct = (int)$m[1];
+
+        // "Save X%" text
+        if (!$pct) {
+            $saveText = $this->xpathText($xpath, [
+                './/*[contains(text(),"Save") and contains(text(),"%")]',
+                './/*[contains(@class,"savingsPercentage")]',
+            ], $card);
+            if ($saveText && preg_match('/(\d+)\s*%/', $saveText, $m)) $pct = (int)$m[1];
+        }
+
+        // ── Prices ─────────────────────────────────────────────────────────
+        // Sale price: Amazon uses a-offscreen span for screen readers (most reliable)
+        $salePriceTexts = $xpath->query('.//*[contains(@class,"a-price") and not(contains(@class,"a-text-price"))]//span[@class="a-offscreen"]', $card);
+        $sale = 0.0;
+        if ($salePriceTexts->length > 0) {
+            $sale = $this->parsePrice((string)$salePriceTexts->item(0)->textContent);
+        }
+
+        // Original/was price: has a-text-price class and a-offscreen child
+        $origPriceTexts = $xpath->query('.//*[contains(@class,"a-text-price")]//span[@class="a-offscreen"]', $card);
+        $orig = 0.0;
+        if ($origPriceTexts->length > 0) {
+            $orig = $this->parsePrice((string)$origPriceTexts->item(0)->textContent);
+        }
+
+        // If we still don't have prices, try to get from data attributes
+        if ($sale <= 0) {
+            $priceNode = $xpath->query('.//*[@data-a-price]', $card);
+            if ($priceNode->length > 0) {
+                $priceData = @json_decode($priceNode->item(0)->getAttribute('data-a-price'), true);
+                if ($priceData) $sale = (float)($priceData['amount'] ?? 0);
+            }
+        }
+
+        // Compute pct if we have both prices
+        if ($pct < 50 && $sale > 0 && $orig > $sale) {
+            $pct = $this->calcDiscount($orig, $sale);
+        }
+        // Reconstruct orig if pct known
+        if ($orig <= $sale && $pct >= 50 && $sale > 0) {
+            $orig = round($sale / (1 - $pct / 100), 2);
+        }
+
+        if ($pct < 50 || $sale <= 0) return false;
+
+        // ── Image ──────────────────────────────────────────────────────────
+        $image = $this->extractAmazonImage($xpath, $card, $asin);
+
+        // ── Rating ─────────────────────────────────────────────────────────
+        $ratingText = $xpath->evaluate('string(.//*[contains(@class,"a-icon-alt")])', $card);
+        $rating = 0.0;
+        if (preg_match('/([\d.]+)\s+out\s+of/i', $ratingText, $rm)) $rating = (float)$rm[1];
+
+        $reviewText = $this->xpathText($xpath, ['.//*[contains(@aria-label,"ratings")]', './/*[contains(@class,"a-size-base") and contains(@class,"s-underline-text")]'], $card);
+        $reviews = (int)preg_replace('/\D/', '', $reviewText ?? '0');
+
+        // ── Category ───────────────────────────────────────────────────────
+        $category = $this->mapCategory($title);
+
+        // ── Build URLs ─────────────────────────────────────────────────────
+        $productUrl  = "https://www.amazon.com/dp/{$asin}";
+        $affiliateUrl= "https://www.amazon.com/dp/{$asin}?tag={$this->tag}";
+
+        return $this->saveDeal([
+            'title'          => $title,
+            'original_price' => $orig,
+            'sale_price'     => $sale,
+            'discount_pct'   => $pct,
+            'image_url'      => $image,
+            'product_url'    => $productUrl,
+            'affiliate_url'  => $affiliateUrl,
+            'category'       => $category,
+            'rating'         => $rating > 0 ? $rating : null,
+            'review_count'   => $reviews,
+        ]);
+    }
+
+    // ── Parse Gold Box tile ───────────────────────────────────────────────────
+    private function parseGoldBoxTile(\DOMElement $tile, \DOMXPath $xpath): bool {
+        $asin = $tile->getAttribute('data-asin') ?: $tile->getAttribute('id');
+        if (!$asin) {
+            // Try to find ASIN in child links
+            $links = $xpath->query('.//a[contains(@href,"/dp/")]', $tile);
+            if ($links->length > 0) {
+                preg_match('|/dp/([A-Z0-9]{10})|', $links->item(0)->getAttribute('href'), $m);
+                $asin = $m[1] ?? null;
+            }
+        }
+        if (!$asin) return false;
+
+        $title = $this->xpathText($xpath, [
+            './/*[contains(@class,"DealTitle")]',
+            './/*[contains(@class,"a-truncate-full")]',
+            './/a[@title]/@title',
+        ], $tile);
+        if (!$title) return false;
+
+        // Percentage from badge
+        $badgeText = $this->xpathText($xpath, ['.//*[contains(@class,"badgeLabel")]', './/*[contains(@class,"a-badge-text")]'], $tile);
+        $pct = 0;
+        if ($badgeText && preg_match('/(\d+)/', $badgeText, $m)) $pct = (int)$m[1];
+        if ($pct < 50) return false;
+
+        $priceText = $this->xpathText($xpath, ['.//*[contains(@class,"dealPrice")]', './/*[contains(@class,"a-price")]//span[@class="a-offscreen"]'], $tile);
+        $sale = $this->parsePrice($priceText ?? '');
+        if ($sale <= 0) return false;
+        $orig = round($sale / (1 - $pct / 100), 2);
+
+        $imgSrc = $xpath->evaluate('string(.//img/@src)', $tile);
+        $image  = $this->cleanAmazonImageUrl($imgSrc);
+
+        return $this->saveDeal([
+            'title'          => $title,
+            'original_price' => $orig,
+            'sale_price'     => $sale,
+            'discount_pct'   => $pct,
+            'image_url'      => $image,
+            'product_url'    => "https://www.amazon.com/dp/{$asin}",
+            'affiliate_url'  => "https://www.amazon.com/dp/{$asin}?tag={$this->tag}",
+            'category'       => $this->mapCategory($title),
+        ]);
+    }
+
+    // ── Process JSON item (from embedded state) ───────────────────────────────
+    private function processJsonItem(array $item): bool {
+        $asin  = $item['asin'] ?? $item['dealAsin'] ?? null;
+        $title = $item['title'] ?? $item['productDescription'] ?? '';
+        if (!$asin || !$title) return false;
+
+        $orig  = (float)($item['original_price'] ?? $item['priceInfo']['listPrice']['amount'] ?? 0);
+        $sale  = (float)($item['deal_price']     ?? $item['priceInfo']['dealPrice']['amount'] ?? 0);
+        $pct   = (int)($item['percentOff']       ?? $item['discount_percent'] ?? 0);
+
+        if ($pct < 50 && $orig > 0 && $sale > 0) $pct = $this->calcDiscount($orig, $sale);
+        if ($pct < 50) return false;
+        if ($orig <= 0 && $pct > 0 && $sale > 0) $orig = round($sale / (1 - $pct/100), 2);
+
+        $img = $item['primaryImage'] ?? $item['image'] ?? null;
+        if ($img && !str_contains($img, 'http')) {
+            $img = "https://m.media-amazon.com/images/I/{$img}._AC_SL500_.jpg";
+        }
+
+        return $this->saveDeal([
+            'title'          => $title,
+            'original_price' => $orig,
+            'sale_price'     => $sale,
+            'discount_pct'   => $pct,
+            'image_url'      => $img,
+            'product_url'    => "https://www.amazon.com/dp/{$asin}",
+            'affiliate_url'  => "https://www.amazon.com/dp/{$asin}?tag={$this->tag}",
+            'category'       => $this->mapCategory($title),
+        ]);
+    }
+
+    // ── Extract Amazon product image ──────────────────────────────────────────
+    private function extractAmazonImage(\DOMXPath $xpath, \DOMElement $card, string $asin): ?string {
+        // Try srcset first (highest quality)
+        $imgNodes = $xpath->query('.//img[contains(@class,"s-image") or contains(@data-component-type,"image")]', $card);
+        if ($imgNodes->length > 0) {
+            $img = $imgNodes->item(0);
+            $src = $img->getAttribute('src');
+            return $this->cleanAmazonImageUrl($src);
+        }
+        // Fallback: construct from ASIN
+        // Amazon image IDs aren't predictable from ASIN alone, so return null
+        // and let the proxy handle the placeholder
+        return null;
+    }
+
+    private function cleanAmazonImageUrl(string $url): ?string {
+        if (!$url || strlen($url) < 10) return null;
+        // Amazon images: https://m.media-amazon.com/images/I/XXXX._AC_SL160_.jpg
+        // Remove size constraints to get full image
+        $url = preg_replace('/\._[A-Z]{2}_[^.]+_\./', '._AC_SL500_.', $url);
+        $url = preg_replace('/\._[A-Z0-9,_]+_\./', '._AC_SL500_.', $url);
+        // Some Amazon image URLs are base64 encoded or data URIs — skip those
+        if (str_starts_with($url, 'data:')) return null;
+        return $url;
+    }
+
+    // ── XPath text helper ─────────────────────────────────────────────────────
+    private function xpathText(\DOMXPath $xpath, array $queries, \DOMElement $context): ?string {
+        foreach ($queries as $q) {
+            $nodes = $xpath->query($q, $context);
+            if ($nodes && $nodes->length > 0) {
+                $text = trim($nodes->item(0)->textContent);
+                if ($text) return $text;
+            }
+        }
+        return null;
+    }
+}

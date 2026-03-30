@@ -56,12 +56,12 @@ if ($_POST['action'] ?? '' === 'run_scraper') {
 }
 
 // Stats
-$totalDeals    = $db->query("SELECT COUNT(*) FROM deals WHERE is_active=TRUE")->fetchColumn();
-$totalClicks   = $db->query("SELECT COUNT(*) FROM clicks WHERE clicked_at > NOW() - INTERVAL '7 days'")->fetchColumn();
-$topDeals      = $db->query("SELECT d.id, d.title, d.image_url, d.store, d.discount_pct, d.is_featured, COUNT(c.id) as clicks FROM deals d LEFT JOIN clicks c ON c.deal_id=d.id GROUP BY d.id, d.title, d.image_url, d.store, d.discount_pct, d.is_featured ORDER BY clicks DESC LIMIT 10")->fetchAll();
-$recentDeals   = $db->query("SELECT * FROM deals WHERE is_active=TRUE ORDER BY scraped_at DESC LIMIT 20")->fetchAll();
+$totalDeals    = $db->query("SELECT COUNT(*) FROM deals WHERE is_active=1")->fetchColumn();
+$totalClicks   = $db->query("SELECT COUNT(*) FROM clicks WHERE clicked_at > NOW() - INTERVAL 7 DAY")->fetchColumn();
+$topDeals      = $db->query("SELECT d.*, COUNT(c.id) as clicks FROM deals d LEFT JOIN clicks c ON c.deal_id=d.id GROUP BY d.id ORDER BY clicks DESC LIMIT 10")->fetchAll();
+$recentDeals   = $db->query("SELECT * FROM deals WHERE is_active=1 ORDER BY scraped_at DESC LIMIT 20")->fetchAll();
 $scraperLog    = $db->query("SELECT * FROM scraper_log ORDER BY ran_at DESC LIMIT 10")->fetchAll();
-$storeStats    = $db->query("SELECT store, COUNT(*) as cnt FROM deals WHERE is_active=TRUE GROUP BY store")->fetchAll();
+$storeStats    = $db->query("SELECT store, COUNT(*) as cnt FROM deals WHERE is_active=1 GROUP BY store")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">

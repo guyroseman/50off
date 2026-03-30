@@ -12,7 +12,7 @@ $db   = getDB();
 $stmt = $db->prepare("
     SELECT id, title, sale_price, discount_pct, image_url
     FROM deals
-    WHERE is_active=TRUE AND discount_pct>=50 AND title ILIKE ?
+    WHERE is_active=1 AND discount_pct>=50 AND title LIKE ?
     ORDER BY discount_pct DESC
     LIMIT 6
 ");

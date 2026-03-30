@@ -5,7 +5,7 @@ require_once __DIR__ . '/db.php';
 
 function getDeals(array $opts = []): array {
     $db = getDB();
-    $where  = ['d.is_active = TRUE', 'd.discount_pct >= 50'];
+    $where  = ['d.is_active = 1', 'd.discount_pct >= 50'];
     $params = [];
 
     if (!empty($opts['store'])) {
@@ -17,12 +17,12 @@ function getDeals(array $opts = []): array {
         $params[':cat'] = $opts['category'];
     }
     if (!empty($opts['search'])) {
-        $where[] = '(d.title ILIKE :q OR d.description ILIKE :q2)';
+        $where[] = '(d.title LIKE :q OR d.description LIKE :q2)';
         $params[':q']  = '%' . $opts['search'] . '%';
         $params[':q2'] = '%' . $opts['search'] . '%';
     }
     if (!empty($opts['featured'])) {
-        $where[] = 'd.is_featured = TRUE';
+        $where[] = 'd.is_featured = 1';
     }
 
     $orderMap = [
@@ -51,7 +51,7 @@ function getDeals(array $opts = []): array {
 
 function getDealById(int $id): ?array {
     $db   = getDB();
-    $stmt = $db->prepare("SELECT * FROM deals WHERE id = ? AND is_active = TRUE");
+    $stmt = $db->prepare("SELECT * FROM deals WHERE id = ? AND is_active = 1");
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
@@ -59,11 +59,11 @@ function getDealById(int $id): ?array {
 
 function countDeals(array $opts = []): int {
     $db     = getDB();
-    $where  = ['is_active = TRUE', 'discount_pct >= 50'];
+    $where  = ['is_active = 1', 'discount_pct >= 50'];
     $params = [];
     if (!empty($opts['store']))    { $where[] = 'store = :store';    $params[':store'] = $opts['store']; }
     if (!empty($opts['category'])) { $where[] = 'category = :cat';   $params[':cat']   = $opts['category']; }
-    if (!empty($opts['search']))   { $where[] = 'title ILIKE :q';    $params[':q']     = '%'.$opts['search'].'%'; }
+    if (!empty($opts['search']))   { $where[] = 'title LIKE :q';    $params[':q']     = '%'.$opts['search'].'%'; }
     $stmt = $db->prepare("SELECT COUNT(*) FROM deals WHERE " . implode(' AND ', $where));
     $stmt->execute($params);
     return (int)$stmt->fetchColumn();
@@ -73,7 +73,7 @@ function getStores(): array {
     $db   = getDB();
     $stmt = $db->query("
         SELECT store, COUNT(*) as cnt
-        FROM deals WHERE is_active=TRUE AND discount_pct>=50
+        FROM deals WHERE is_active=1 AND discount_pct>=50
         GROUP BY store ORDER BY cnt DESC LIMIT 8
     ");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -84,7 +84,7 @@ function getCategories(): array {
     $stmt = $db->query("
         SELECT c.id, c.slug, c.name, c.icon, c.sort_order, COUNT(d.id) as deal_count
         FROM categories c
-        LEFT JOIN deals d ON d.category = c.slug AND d.is_active=TRUE AND d.discount_pct>=50
+        LEFT JOIN deals d ON d.category = c.slug AND d.is_active=1 AND d.discount_pct>=50
         GROUP BY c.id, c.slug, c.name, c.icon, c.sort_order ORDER BY c.sort_order
     ");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
