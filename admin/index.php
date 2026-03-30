@@ -9,6 +9,8 @@ $adminPass = 'admin123'; // CHANGE THIS before going live!
 
 if (($_POST['password'] ?? '') === $adminPass) {
     $_SESSION['admin'] = true;
+    header('Location: /admin/');
+    exit;
 }
 if (($_GET['logout'] ?? '') === '1') {
     session_destroy();
@@ -54,18 +56,10 @@ if ($_POST['action'] ?? '' === 'feature_deal') {
     exit;
 }
 if ($_POST['action'] ?? '' === 'run_scraper') {
-    $scraperPath = __DIR__ . '/../scraper/run.php';
-    if (function_exists('shell_exec')) {
-        $output = shell_exec('php ' . escapeshellarg($scraperPath) . ' 2>&1');
-    } elseif (function_exists('exec')) {
-        exec('php ' . escapeshellarg($scraperPath) . ' 2>&1', $lines);
-        $output = implode("\n", $lines);
-    } else {
-        // Fallback: run scraper inline
-        ob_start();
-        include $scraperPath;
-        $output = ob_get_clean();
-    }
+    ob_start();
+    $argv = ['run.php', 'all'];
+    include __DIR__ . '/../scraper/run.php';
+    $output = ob_get_clean();
 }
 
 // Stats
