@@ -7,7 +7,7 @@ session_start();
 // Basic password protection
 $adminPass = 'admin123'; // CHANGE THIS before going live!
 
-if ($_POST['password'] ?? '' === $adminPass) {
+if (($_POST['password'] ?? '') === $adminPass) {
     $_SESSION['admin'] = true;
 }
 if (($_GET['logout'] ?? '') === '1') {
