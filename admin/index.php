@@ -1,4 +1,6 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 // admin/index.php — Simple admin dashboard
 session_start();
 
@@ -186,4 +188,3 @@ h2 { margin: 1.5rem 0 1rem; font-size:1.2rem; }
 </div>
 </body>
 </html>
-<?php function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); } ?>
