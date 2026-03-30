@@ -7,9 +7,10 @@ define('DB_USER', 'u917150170_50off');
 define('DB_PASS', '50offPass2026');
 define('DB_CHARSET', 'utf8mb4');
 
-function getDB(): PDO {
+function getDB(bool $reset = false): PDO {
     static $pdo = null;
-    if ($pdo === null) {
+    if ($pdo === null || $reset) {
+        $pdo = null; // clear stale handle before creating new one
         $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,

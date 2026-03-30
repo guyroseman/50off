@@ -112,45 +112,59 @@ abstract class BaseScraper {
         }
         if ($pct < 50 || $sale <= 0 || $orig <= $sale) return false;
 
-        try {
-            $stmt = $this->db->prepare("
-                INSERT INTO deals
-                    (title, description, original_price, sale_price, discount_pct,
-                     image_url, product_url, affiliate_url, store, category,
-                     rating, review_count, is_featured, is_active, scraped_at)
-                VALUES
-                    (:title,:desc,:orig,:sale,:pct,:img,:url,:aff,:store,:cat,:rating,:reviews,0,1,NOW())
-                ON DUPLICATE KEY UPDATE
-                    title          = VALUES(title),
-                    sale_price     = VALUES(sale_price),
-                    original_price = VALUES(original_price),
-                    discount_pct   = VALUES(discount_pct),
-                    image_url      = COALESCE(VALUES(image_url), image_url),
-                    description    = COALESCE(VALUES(description), description),
-                    scraped_at     = NOW(),
-                    is_active      = 1
-            ");
-            $stmt->execute([
-                ':title'   => substr(trim(strip_tags($d['title'])), 0, 500),
-                ':desc'    => isset($d['description']) ? substr(strip_tags($d['description']), 0, 1000) : null,
-                ':orig'    => $orig,
-                ':sale'    => $sale,
-                ':pct'     => $pct,
-                ':img'     => $d['image_url'] ?? null,
-                ':url'     => substr($d['product_url'], 0, 1000),
-                ':aff'     => substr($d['affiliate_url'] ?? $d['product_url'], 0, 1000),
-                ':store'   => $this->store,
-                ':cat'     => $d['category'] ?? null,
-                ':rating'  => isset($d['rating']) ? round((float)$d['rating'], 1) : null,
-                ':reviews' => (int)($d['review_count'] ?? 0),
-            ]);
-            $this->dealsFound++;
-            $this->say("✓ Saved: " . substr($d['title'], 0, 60) . " (-{$pct}%)");
-            return true;
-        } catch (\PDOException $e) {
-            $this->say("DB error: " . $e->getMessage());
-            return false;
+        $params = [
+            ':title'   => substr(trim(strip_tags($d['title'])), 0, 500),
+            ':desc'    => isset($d['description']) ? substr(strip_tags($d['description']), 0, 1000) : null,
+            ':orig'    => $orig,
+            ':sale'    => $sale,
+            ':pct'     => $pct,
+            ':img'     => $d['image_url'] ?? null,
+            ':url'     => substr($d['product_url'], 0, 1000),
+            ':aff'     => substr($d['affiliate_url'] ?? $d['product_url'], 0, 1000),
+            ':store'   => $this->store,
+            ':cat'     => $d['category'] ?? null,
+            ':rating'  => isset($d['rating']) ? round((float)$d['rating'], 1) : null,
+            ':reviews' => (int)($d['review_count'] ?? 0),
+        ];
+
+        $sql = "
+            INSERT INTO deals
+                (title, description, original_price, sale_price, discount_pct,
+                 image_url, product_url, affiliate_url, store, category,
+                 rating, review_count, is_featured, is_active, scraped_at)
+            VALUES
+                (:title,:desc,:orig,:sale,:pct,:img,:url,:aff,:store,:cat,:rating,:reviews,0,1,NOW())
+            ON DUPLICATE KEY UPDATE
+                title          = VALUES(title),
+                sale_price     = VALUES(sale_price),
+                original_price = VALUES(original_price),
+                discount_pct   = VALUES(discount_pct),
+                image_url      = COALESCE(VALUES(image_url), image_url),
+                description    = COALESCE(VALUES(description), description),
+                scraped_at     = NOW(),
+                is_active      = 1
+        ";
+
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute($params);
+                $this->dealsFound++;
+                $this->say("✓ Saved: " . substr($d['title'], 0, 60) . " (-{$pct}%)");
+                return true;
+            } catch (\PDOException $e) {
+                $msg = $e->getMessage();
+                // MySQL "gone away" (2006) or "lost connection" (2013) — reconnect and retry
+                if ($attempt === 1 && (str_contains($msg, 'gone away') || str_contains($msg, '2006') || str_contains($msg, '2013') || str_contains($msg, 'lost connection'))) {
+                    $this->say("  DB reconnecting...");
+                    $this->db = getDB(true);
+                    continue; // retry
+                }
+                $this->say("DB error: " . $msg);
+                return false;
+            }
         }
+        return false;
     }
 
     protected function calcDiscount(float $orig, float $sale): int {

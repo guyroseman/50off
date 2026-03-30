@@ -25,13 +25,29 @@ class AmazonScraper extends BaseScraper
     private   string $tag   = '50off-20';   // US Amazon Associates tag (amazon.com)
     private   int    $limit = 100;          // max products per run
 
-    /** Deals page pre-filtered to 50–100 % off (US store) */
+    /** Deals pages pre-filtered to 50–100 % off (US store) — multiple categories for broader scope */
     private string $startUrl =
         'https://www.amazon.com/deals/' .
         '?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B' .
         '%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff' .
         '%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max' .
         '%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522';
+
+    // Additional category-specific deal pages — each provides a fresh ~30 deals
+    private array $categoryUrls = [
+        // Electronics (node 172282)
+        'https://www.amazon.com/deals/browse-deals/electronics?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
+        // Home & Kitchen
+        'https://www.amazon.com/deals/browse-deals/home-garden?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
+        // Clothing
+        'https://www.amazon.com/deals/browse-deals/apparel?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
+        // Health & Beauty
+        'https://www.amazon.com/deals/browse-deals/beauty?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
+        // Sports & Outdoors
+        'https://www.amazon.com/deals/browse-deals/sports-outdoors?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
+        // Toys & Games
+        'https://www.amazon.com/deals/browse-deals/toys-and-games?discounts-widget=%2522%257B%255C%2522state%255C%2522%253A%257B%255C%2522rangeRefinementFilters%255C%2522%253A%257B%255C%2522percentOff%255C%2522%253A%257B%255C%2522min%255C%2522%253A50%252C%255C%2522max%255C%2522%253A100%257D%257D%257D%252C%255C%2522version%255C%2522%253A1%257D%2522',
+    ];
 
     // ── Entry point ──────────────────────────────────────────────────────────
 
@@ -110,7 +126,33 @@ class AmazonScraper extends BaseScraper
         }
 
         $this->say('');
-        $this->say("══ Done: seen={$totalSeen}, saved/updated={$savedCount} ══");
+        $this->say("══ Main page done: seen={$totalSeen}, saved/updated={$savedCount} ══");
+
+        // ── Step 5: Scrape additional category deal pages ─────────────────────
+        // Each category page gives ~30 unique deals beyond the main page.
+        foreach ($this->categoryUrls as $catUrl) {
+            if ($savedCount >= $this->limit) break;
+
+            $catLabel = basename(parse_url($catUrl, PHP_URL_PATH));
+            $this->say("\n→ Category page: {$catLabel}...");
+            sleep(rand(2, 4));
+
+            $html = $this->fetchAmazonPage($catUrl);
+            if (!$html) { $this->say("  ✗ Failed to fetch"); continue; }
+
+            $json = $this->extractMountWidgetJson($html);
+            if (!$json) { $this->say("  ✗ No widget JSON"); continue; }
+
+            $promotions = $json['prefetchedData']['entity']['rankedPromotions'] ?? [];
+            $this->say("  Got " . count($promotions) . " promotions");
+
+            $batch = $this->processPromotions($promotions, $savedCount);
+            $savedCount += $batch;
+            $totalSeen  += count($promotions);
+            $this->say("  Saved {$batch} from {$catLabel}");
+        }
+
+        $this->say("\n══ Final: seen={$totalSeen}, saved/updated={$savedCount} ══");
         $this->logResult('success', "amazon.com US 50%+ deals (saved: {$savedCount})");
     }
 

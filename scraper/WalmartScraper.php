@@ -40,8 +40,17 @@ class WalmartScraper extends BaseScraper {
         ['q' => 'auto',          'facet' => 'special_offers:Rollback'],
     ];
 
+    // Cookie jar — shared across requests so session cookies carry over
+    private string $cookieJar = '';
+
     public function scrape(): void {
         $this->say("=== Walmart Scraper (JSON API Method) ===");
+
+        // Initialize session: visit homepage to collect cookies before API calls.
+        // Walmart returns HTTP 412 if session cookies are missing.
+        $this->cookieJar = tempnam(sys_get_temp_dir(), '50off_wmt_');
+        $this->say("Initializing Walmart session...");
+        $this->initWalmartSession();
 
         $totalCount = 0;
         foreach ($this->searchQueries as $query) {
@@ -65,6 +74,41 @@ class WalmartScraper extends BaseScraper {
 
         $this->say("Total Walmart deals saved: {$totalCount}");
         $this->logResult('success', "Walmart JSON API (saved: {$totalCount})");
+    }
+
+    // ── Initialize Walmart session by visiting homepage ───────────────────────
+    // Walmart's 412 "Precondition Failed" is triggered when session cookies are
+    // absent. A real browser always visits the site first, so we do the same.
+    private function initWalmartSession(): void {
+        $ch = curl_init('https://www.walmart.com/');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            CURLOPT_COOKIEJAR      => $this->cookieJar,
+            CURLOPT_COOKIEFILE     => $this->cookieJar,
+            CURLOPT_HTTPHEADER     => [
+                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language: en-US,en;q=0.9',
+                'Accept-Encoding: gzip, deflate, br',
+                'sec-ch-ua: "Google Chrome";v="125"',
+                'sec-ch-ua-mobile: ?0',
+                'Sec-Fetch-Dest: document',
+                'Sec-Fetch-Mode: navigate',
+                'Sec-Fetch-Site: none',
+                'Upgrade-Insecure-Requests: 1',
+            ],
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $this->say("  Homepage: HTTP $code (" . number_format(strlen((string)$body)) . " bytes)");
+        sleep(2); // brief pause after homepage — mimic real user behaviour
     }
 
     // ── Fetch Walmart's internal JSON search API ──────────────────────────────
@@ -92,6 +136,8 @@ class WalmartScraper extends BaseScraper {
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_ENCODING       => '',
             CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            CURLOPT_COOKIEJAR      => $this->cookieJar,
+            CURLOPT_COOKIEFILE     => $this->cookieJar,
             CURLOPT_HTTPHEADER     => [
                 'Accept: application/json, text/plain, */*',
                 'Accept-Language: en-US,en;q=0.5',
