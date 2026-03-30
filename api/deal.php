@@ -1,0 +1,124 @@
+<?php
+define('BASE_PATH', __DIR__ . '/..');
+require_once BASE_PATH . '/includes/functions.php';
+
+$id   = (int)getParam('id');
+$deal = $id ? getDealById($id) : null;
+
+if (!$deal) {
+    http_response_code(404);
+    $pageTitle = 'Deal Not Found';
+    include BASE_PATH . '/includes/header.php';
+    echo '<div class="container"><div class="empty-state"><h2>404 — Deal Not Found</h2><p>This deal may have expired.</p><a href="/" class="btn-primary">Browse All Deals</a></div></div>';
+    include BASE_PATH . '/includes/footer.php';
+    exit;
+}
+
+$pageTitle = $deal['title'];
+$related   = getDeals(['category' => $deal['category'], 'store' => $deal['store'], 'limit' => 4]);
+
+include BASE_PATH . '/includes/header.php';
+?>
+
+<div class="container">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="/">Home</a> &rsaquo;
+        <?php if($deal['category']): ?>
+        <a href="/?category=<?= h($deal['category']) ?>"><?= h(ucfirst($deal['category'])) ?></a> &rsaquo;
+        <?php endif; ?>
+        <span><?= h(substr($deal['title'],0,50)) ?>…</span>
+    </nav>
+
+    <div class="deal-detail-grid">
+        <!-- Image -->
+        <div class="deal-detail-img-wrap">
+            <span class="discount-badge badge-fire deal-detail-badge">-<?= $deal['discount_pct'] ?>%</span>
+            <img
+                src="<?= h($deal['image_url'] ?? '/assets/images/placeholder.svg') ?>"
+                alt="<?= h($deal['title']) ?>"
+                class="deal-detail-img"
+                onerror="this.src='/assets/images/placeholder.svg'"
+            >
+        </div>
+
+        <!-- Info -->
+        <div class="deal-detail-info">
+            <div class="deal-store-row">
+                <span class="deal-store" style="color:<?= storeColor($deal['store']) ?>; font-size:1.1rem">
+                    <?= storeLogo($deal['store']) ?> <?= ucfirst(h($deal['store'])) ?>
+                </span>
+                <?php if($deal['category']): ?>
+                <a href="/?category=<?= h($deal['category']) ?>" class="deal-cat"><?= h($deal['category']) ?></a>
+                <?php endif; ?>
+            </div>
+
+            <h1 class="deal-detail-title"><?= h($deal['title']) ?></h1>
+
+            <?php if(!empty($deal['rating'])): ?>
+            <div class="deal-rating deal-rating--lg">
+                <?= str_repeat('★', (int)round($deal['rating'])) ?><?= str_repeat('☆', 5-(int)round($deal['rating'])) ?>
+                <strong><?= $deal['rating'] ?></strong>
+                <span>(<?= number_format($deal['review_count']) ?> reviews)</span>
+            </div>
+            <?php endif; ?>
+
+            <?php if($deal['description']): ?>
+            <p class="deal-detail-desc"><?= h($deal['description']) ?></p>
+            <?php endif; ?>
+
+            <div class="deal-detail-prices">
+                <span class="sale-price sale-price--xl"><?= formatPrice((float)$deal['sale_price']) ?></span>
+                <div class="price-meta">
+                    <span class="orig-price orig-price--md">Was <?= formatPrice((float)$deal['original_price']) ?></span>
+                    <span class="you-save you-save--md">You save <?= savings((float)$deal['original_price'], (float)$deal['sale_price']) ?> (<?= $deal['discount_pct'] ?>%)</span>
+                </div>
+            </div>
+
+            <a
+                href="/go.php?id=<?= $deal['id'] ?>"
+                class="deal-btn deal-btn--xl"
+                target="_blank"
+                rel="noopener sponsored"
+            >
+                🛒 Get This Deal on <?= ucfirst(h($deal['store'])) ?> →
+            </a>
+
+            <p class="deal-disclaimer">
+                Price may change. Last verified <?= date('M j, Y', strtotime($deal['scraped_at'])) ?>.
+                As an affiliate we may earn a commission.
+            </p>
+
+            <div class="deal-actions">
+                <button onclick="shareDeal()" class="btn-secondary">📤 Share</button>
+                <a href="/?category=<?= h($deal['category']) ?>" class="btn-secondary">More <?= h(ucfirst($deal['category'])) ?> Deals</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Related deals -->
+    <?php if(count($related) > 1): ?>
+    <section class="related-section">
+        <h2 class="section-title">Similar Deals</h2>
+        <div class="deals-grid deals-grid--sm">
+            <?php foreach($related as $d):
+                if($d['id'] === $deal['id']) continue;
+                $deal_card_item = $d; // rename to avoid overwriting
+            ?>
+            <?php $deal = $deal_card_item; $lazy = true; include BASE_PATH . '/includes/deal_card.php'; endforeach; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+
+</div>
+
+<script>
+function shareDeal() {
+    if(navigator.share) {
+        navigator.share({ title: document.title, url: location.href });
+    } else {
+        navigator.clipboard.writeText(location.href).then(() => alert('Link copied!'));
+    }
+}
+</script>
+
+<?php include BASE_PATH . '/includes/footer.php'; ?>
