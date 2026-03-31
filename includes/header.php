@@ -79,6 +79,7 @@ $discountTypes = [
                     <span class="pill-count"><?= $s['cnt'] ?></span>
                 </a>
                 <?php endforeach; ?>
+                <a href="/blog/" class="store-pill <?= str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog') ? 'active' : '' ?>">📝 Blog</a>
             </nav>
 
             <button class="mobile-menu-btn" aria-label="Menu">

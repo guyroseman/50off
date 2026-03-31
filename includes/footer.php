@@ -34,11 +34,21 @@
             </ul>
         </div>
         <div class="footer-links">
+            <h4>Blog</h4>
+            <ul>
+                <li><a href="/blog/">📝 All Posts</a></li>
+                <li><a href="/blog/?cat=roundup">🔥 Weekly Roundups</a></li>
+                <li><a href="/blog/?cat=guide">📖 Buying Guides</a></li>
+                <li><a href="/blog/how-50off-works">How 50OFF Works</a></li>
+            </ul>
+        </div>
+        <div class="footer-links">
             <h4>Info</h4>
             <ul>
                 <li><a href="/about.php">About 50OFF</a></li>
                 <li><a href="/privacy.php">Privacy Policy</a></li>
                 <li><a href="/terms.php">Terms of Use</a></li>
+                <li><a href="/sitemap.xml">Sitemap</a></li>
                 <li><a href="/admin/">Admin Panel</a></li>
             </ul>
         </div>

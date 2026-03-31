@@ -12,6 +12,14 @@ RewriteRule ^go/([0-9]+)/?$ go.php?id=$1 [L,QSA]
 # Route /deal/123 to deal.php?id=123
 RewriteRule ^deal/([0-9]+)/?$ deal.php?id=$1 [L,QSA]
 
+# Route /blog/slug to blog/post.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^blog/([^/\.]+)/?$ /blog/post.php?slug=$1 [L,QSA]
+
+# Sitemap
+RewriteRule ^sitemap\.xml$ /sitemap.xml.php [L,QSA]
+
 # Protect sensitive files
 <FilesMatch "\.(sql|env|log|md)$">
     Order Allow,Deny
