@@ -7,33 +7,51 @@
  *  SOURCES:
  *  ┌─────────────────────────────────────────────────────────────────────┐
  *  │ Amazon  (amazon.com US) — deals filtered to 50–100% off            │
- *  │ Walmart (walmart.com)   — flash deals + rollback, 50%+ off         │
  *  │ Target  (target.com)    — top deals + clearance, 50%+ off          │
+ *  │                           ⚠ Target needs GitHub Actions IP         │
+ *  │ Walmart (walmart.com)   — ⚠ blocked by Akamai, stub only           │
  *  └─────────────────────────────────────────────────────────────────────┘
  *
  *  USAGE:
- *    php scraper/run.php           # run all 3 scrapers (amazon + walmart + target)
+ *    php scraper/run.php           # run all scrapers (amazon + target + walmart)
  *    php scraper/run.php all       # same
  *    php scraper/run.php amazon    # Amazon only
- *    php scraper/run.php walmart   # Walmart only
  *    php scraper/run.php target    # Target only
+ *    php scraper/run.php walmart   # Walmart only (stub — logs block message)
  *    php scraper/run.php seed      # seed data only (no network)
  *
- *  CRON (every 4 hours — staggers load across all 3 retailers):
- *    0 *\/4 * * * /usr/bin/php /path/to/50off/scraper/run.php >> /tmp/50off.log 2>&1
+ *  GITHUB ACTIONS MODE (SCRAPER_OUTPUT=json):
+ *    SCRAPER_OUTPUT=json php scraper/run.php target
+ *    Outputs JSON to stdout, no DB connection needed. Used by GitHub Actions
+ *    to run Target scraper and POST results to /api/submit-deals.php.
+ *
+ *  CRON (every 4 hours — Amazon only, runs on Hostinger):
+ *    0 *\/4 * * * /usr/bin/php /path/to/50off/scraper/run.php amazon >> /tmp/50off.log 2>&1
  */
 
 define('ROOT', dirname(__DIR__));
-require_once ROOT . '/includes/db.php';
+
+$jsonMode = (getenv('SCRAPER_OUTPUT') === 'json');
+
+if (!$jsonMode) {
+    require_once ROOT . '/includes/db.php';
+}
+
 require_once __DIR__ . '/BaseScraper.php';
 require_once __DIR__ . '/SeedScraper.php';
 require_once __DIR__ . '/AmazonScraper.php';
 require_once __DIR__ . '/WalmartScraper.php';
 require_once __DIR__ . '/TargetScraper.php';
-require_once __DIR__ . '/RssDealScraper.php';
+
+if ($jsonMode) {
+    BaseScraper::enableJsonMode();
+}
 
 $line = str_repeat('═', 60);
-echo "\n$line\n 50OFF Scraper — " . date('Y-m-d H:i:s') . "\n$line\n\n";
+
+if (!$jsonMode) {
+    echo "\n$line\n 50OFF Scraper — " . date('Y-m-d H:i:s') . "\n$line\n\n";
+}
 
 // ── Which scrapers to run ────────────────────────────────────────────────────
 $requested = $argv[1] ?? 'all';
@@ -42,51 +60,63 @@ $run = match($requested) {
     'amazon'  => ['amazon'],
     'walmart' => ['walmart'],
     'target'  => ['target'],
-    'rss'     => ['rss'],
-    default   => ['amazon', 'rss', 'walmart', 'target'],   // 'all' or no arg → run all
+    default   => ['amazon', 'target', 'walmart'],   // 'all' or no arg
 };
 
-// ── DB setup ─────────────────────────────────────────────────────────────────
-$db = getDB();
+// ── DB setup (DB mode only) ───────────────────────────────────────────────────
+if (!$jsonMode) {
+    $db = getDB();
 
-// Ensure unique key exists (required for upsert ON DUPLICATE KEY UPDATE)
-try { $db->exec("ALTER TABLE deals ADD UNIQUE KEY uq_product_url (product_url(255))"); }
-catch (\PDOException) {} // already exists
+    // Ensure unique key exists (required for upsert ON DUPLICATE KEY UPDATE)
+    try { $db->exec("ALTER TABLE deals ADD UNIQUE KEY uq_product_url (product_url(255))"); }
+    catch (\PDOException) {} // already exists
 
-// ── Expire old deals ─────────────────────────────────────────────────────────
-$exp = $db->prepare("UPDATE deals SET is_active=0
-    WHERE scraped_at < NOW() - INTERVAL 3 DAY AND is_featured=0");
-$exp->execute();
-echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n\n";
+    // Expire old deals
+    $exp = $db->prepare("UPDATE deals SET is_active=0
+        WHERE scraped_at < NOW() - INTERVAL 3 DAY AND is_featured=0");
+    $exp->execute();
+    echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n\n";
+}
 
 // ── Run scrapers ─────────────────────────────────────────────────────────────
 $scrapers = [
     'seed'    => fn() => new SeedScraper(),
     'amazon'  => fn() => new AmazonScraper(),
-    'rss'     => fn() => new RssDealScraper(),
     'walmart' => fn() => new WalmartScraper(),
     'target'  => fn() => new TargetScraper(),
 ];
 
-$before = (int)$db->query("SELECT COUNT(*) FROM deals WHERE is_active=1")->fetchColumn();
+if (!$jsonMode) {
+    $before = (int)$db->query("SELECT COUNT(*) FROM deals WHERE is_active=1")->fetchColumn();
+}
 
 foreach ($run as $name) {
-    $label = strtoupper($name);
-    echo str_repeat('─', 60) . "\n";
-    echo " ▶  $label\n";
-    echo str_repeat('─', 60) . "\n";
+    if (!$jsonMode) {
+        $label = strtoupper($name);
+        echo str_repeat('─', 60) . "\n";
+        echo " ▶  $label\n";
+        echo str_repeat('─', 60) . "\n";
+    }
     try {
         $scrapers[$name]()->scrape();
     } catch (\Throwable $e) {
         echo "  ⚠  ERROR: {$e->getMessage()}\n";
         echo "     {$e->getFile()}:{$e->getLine()}\n";
     }
-    echo "\n";
+    if (!$jsonMode) echo "\n";
 }
 
-// ── Summary ──────────────────────────────────────────────────────────────────
+// ── JSON mode: output deals as JSON and exit ─────────────────────────────────
+if ($jsonMode) {
+    $deals = BaseScraper::getJsonDeals();
+    echo json_encode($deals);
+    exit(0);
+}
+
+// ── DB mode: print summary ────────────────────────────────────────────────────
 // Reconnect in case MySQL dropped the connection during long scraping
 try { $db->query("SELECT 1"); } catch (\PDOException) { $db = getDB(); }
+
 $after = (int)$db->query("SELECT COUNT(*) FROM deals WHERE is_active=1")->fetchColumn();
 $rows  = $db->query("
     SELECT store,

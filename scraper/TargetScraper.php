@@ -1,462 +1,229 @@
 <?php
 /**
- * TargetScraper.php
+ * TargetScraper.php — target.com deals (50%+ off) via RedSky API
+ * ════════════════════════════════════════════════════════════════
  *
- * Targets: https://www.target.com/c/top-deals/-/N-4xw74
+ * HOW IT WORKS:
+ * ─────────────
+ * Target's RedSky API (plp_search_v2) returns structured product data including
+ * current price, regular price, and save_percent for each item.
+ * We browse by category with sortBy=DiscountHigh to surface 50%+ deals first.
  *
- * HOW TARGET'S PAGE WORKS:
- * ─────────────────────────
- * Target's website makes real-time API calls to their "RedSky" backend.
- * We can intercept these calls and use them directly.
+ * ⚠ IMPORTANT — IP RESTRICTION:
+ * The RedSky API returns 403 from Hostinger datacenter IPs.
+ * This scraper must run via GitHub Actions (Ubuntu runners are not blocked).
+ * It uses BaseScraper's JSON mode to output deals without a DB connection.
  *
- * Target uses TWO data sources on their deals page:
- *
- * 1. __PRELOADED_STATE__ in <script> tags — contains initial product data
- *    Path: __PRELOADED_STATE__.plp.items.Item[]
- *
- * 2. RedSky API — Target's own public-facing product API
- *    Endpoint: https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2
- *    API Key: ff457966e64d5e877fdbad070f276d18ecec4a01 (embedded in Target's JS)
- *
- * Price structure in Target's data:
- *   item.price.reg_retail    = original price
- *   item.price.current_retail= sale price
- *   item.price.save_percent  = discount percentage
- *
- * Image URLs: https://target.scene7.com/is/image/Target/TCIN_number
- *
- * TCIN = Target's product ID (like ASIN for Amazon)
+ * AFFILIATE:
+ * ──────────
+ * Target's affiliate program is through Impact (formerly Commission Junction).
+ * Until affiliate approval, product URLs are plain target.com links.
+ * Register at: https://partners.target.com/
  */
 require_once __DIR__ . '/BaseScraper.php';
 
-class TargetScraper extends BaseScraper {
+class TargetScraper extends BaseScraper
+{
     protected string $store = 'target';
+    private   int    $limit = 90;       // max deals per run
 
-    // Target's public API key (extracted from their JS bundle — rotates periodically)
-    // Fallback keys to try in order if the primary fails
-    private array $apiKeys = [
-        'ff457966e64d5e877fdbad070f276d18ecec4a01',  // 2024-2025 known key
-        '9f36aeafbe60771e321a7cc95a78140772ab3e96',  // older fallback
-    ];
-    private string $apiKey = 'ff457966e64d5e877fdbad070f276d18ecec4a01';
+    private const API_KEY = 'ff457966e64d5e877fdbad070f276d18ecec4a01';
+    private const API_BASE = 'https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2';
 
-    // Store ID for pricing (3991 = online store)
-    private int $storeId = 3991;
-
-    // Target deal pages to scrape
-    private array $dealPages = [
-        'https://www.target.com/c/top-deals/-/N-4xw74',
-        'https://www.target.com/c/clearance/-/N-5q0et',
-        'https://www.target.com/c/electronics-deals/-/N-5fwzy',
-        'https://www.target.com/c/home-deals/-/N-5q0e4',
-        'https://www.target.com/c/clothing-deals-women/-/N-55b1f',
-        'https://www.target.com/c/toy-clearance/-/N-5q0e5',
+    // Category IDs confirmed to have 50%+ deals (browsed 2026-03)
+    // format: [ categoryId => label ]
+    private const CATEGORIES = [
+        '5xtm1' => 'Food & Beverage',   // most deals
+        '5xtgz' => 'Toys',
+        '5xtk2' => 'Kitchen',
+        '5xtg6' => 'Electronics',
+        '5xtk9' => 'Furniture',
+        '5q0ga' => 'Clearance',
     ];
 
-    // Keywords for RedSky API search — "sale X" returns the most discounted items
-    private array $apiCategories = [
-        ['keyword' => 'sale electronics',  'cat' => 'electronics'],
-        ['keyword' => 'sale clothing',     'cat' => 'clothing'],
-        ['keyword' => 'sale home',         'cat' => 'home'],
-        ['keyword' => 'clearance toys',    'cat' => 'toys'],
-        ['keyword' => 'sale kitchen',      'cat' => 'kitchen'],
-        ['keyword' => 'sale sports',       'cat' => 'sports'],
-        ['keyword' => 'sale beauty',       'cat' => 'beauty'],
-        ['keyword' => '50 percent off',    'cat' => 'other'],
-        ['keyword' => 'half off',          'cat' => 'other'],
-    ];
+    public function scrape(): void
+    {
+        $this->say('=== Target Scraper — target.com (50%+ off) ===');
+        $this->say('  Note: requires GitHub Actions IP (403 from datacenter)');
 
-    public function scrape(): void {
-        $this->say("=== Target Top Deals Scraper ===");
-        $this->say("Target: target.com/c/top-deals/-/N-4xw74");
+        $savedTotal = 0;
 
-        // Auto-discover current API key before scraping
-        $discoveredKey = $this->discoverApiKey();
-        if ($discoveredKey && $discoveredKey !== $this->apiKey) {
-            $this->say("  ✓ Discovered API key: " . substr($discoveredKey, 0, 8) . "...");
-            $this->apiKey = $discoveredKey;
-        }
+        foreach (self::CATEGORIES as $catId => $catLabel) {
+            if ($savedTotal >= $this->limit) break;
 
-        // Method 1: Scrape HTML pages directly (gets __PRELOADED_STATE__ data)
-        foreach ($this->dealPages as $url) {
-            $this->say("Page: " . str_replace('https://www.target.com', '', $url));
-            $html = $this->fetchTargetPage($url);
-            if (!$html) { $this->say("  → No response"); sleep(3); continue; }
+            $this->say("→ Category: {$catLabel} ({$catId})");
+            $offset = 0;
+            $pageSize = 24;
 
-            $count = $this->parsePage($html);
-            $this->say("  → $count deals from page HTML");
-            sleep(rand(2, 4));
-        }
+            do {
+                $url = $this->buildApiUrl($catId, $offset);
+                $body = $this->fetch($url, $this->apiHeaders(), 'https://www.target.com/');
 
-        // Method 2: RedSky API — try each fallback key until one works
-        $this->say("Querying Target RedSky API...");
-        $apiWorked = false;
-        foreach ($this->apiCategories as $cat) {
-            $count = $this->queryRedSkyApi($cat['keyword']);
-            if ($count === -1) {
-                // API returned auth error — try next key
-                if (!$apiWorked) {
-                    $nextKey = $this->tryNextApiKey();
-                    if ($nextKey) {
-                        $this->say("  Switched to API key: " . substr($nextKey, 0, 8) . "...");
-                        $count = $this->queryRedSkyApi($cat['keyword']);
-                    }
+                if (!$body) {
+                    $this->say("  ✗ No response. Skipping category.");
+                    break;
                 }
-            }
-            if ($count >= 0) {
-                $this->say("  → {$count} deals for {$cat['cat']} ({$cat['keyword']})");
-                if ($count > 0) $apiWorked = true;
-            }
-            sleep(rand(1, 3));
-        }
 
-        $this->logResult('success', "Target Top Deals");
-    }
-
-    // ── Discover the current API key from Target's JS bundle ─────────────────
-    private function discoverApiKey(): ?string {
-        // Target embeds the API key in their main JS config
-        $html = $this->fetch('https://www.target.com/');
-        if (!$html) return null;
-
-        // Pattern 1: JSON config with apiKey
-        if (preg_match('/"apiKey"\s*:\s*"([a-f0-9]{40})"/', $html, $m)) return $m[1];
-
-        // Pattern 2: key= parameter in script src URLs
-        if (preg_match('/[?&]key=([a-f0-9]{40})/', $html, $m)) return $m[1];
-
-        // Pattern 3: Look in their analytics/config scripts
-        if (preg_match('/["\']([a-f0-9]{40})["\']/', $html, $m)) return $m[1];
-
-        // Try their config endpoint
-        $config = $this->fetch('https://www.target.com/api/v2/config');
-        if ($config && preg_match('/"key"\s*:\s*"([a-f0-9]{40})"/', $config, $m)) return $m[1];
-
-        return null;
-    }
-
-    // ── Try the next API key in the fallback list ─────────────────────────────
-    private function tryNextApiKey(): ?string {
-        foreach ($this->apiKeys as $key) {
-            if ($key !== $this->apiKey) {
-                $this->apiKey = $key;
-                return $key;
-            }
-        }
-        return null;
-    }
-
-    // ── Fetch with Target-specific headers ────────────────────────────────────
-    private function fetchTargetPage(string $url): string|false {
-        return $this->fetch($url, [
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language: en-US,en;q=0.9',
-            'sec-ch-ua: "Chromium";v="124", "Google Chrome";v="124"',
-            'sec-fetch-dest: document',
-            'sec-fetch-mode: navigate',
-            'sec-fetch-site: none',
-            'Cache-Control: no-cache',
-        ], 'https://www.target.com/');
-    }
-
-    // ── Parse Target HTML page ─────────────────────────────────────────────────
-    private function parsePage(string $html): int {
-        $count = 0;
-
-        // ── PRIMARY: Extract __TGT_DATA__ (current Target format, 2026+) ─
-        // Format: __TGT_DATA__': {..., value: deepFreeze(JSON.parse("ESCAPED_JSON"))
-        // The JSON string contains \" escapes — we extract char-by-char to handle them.
-        $tgtPos = strpos($html, '__TGT_DATA__');
-        if ($tgtPos !== false) {
-            $marker = 'deepFreeze(JSON.parse("';
-            $mPos   = strpos($html, $marker, $tgtPos);
-            if ($mPos !== false) {
-                $start   = $mPos + strlen($marker);
-                $jsonStr = '';
-                $len     = strlen($html);
-                for ($i = $start; $i < $len; $i++) {
-                    if ($html[$i] === '\\' && $i + 1 < $len) {
-                        $jsonStr .= $html[$i] . $html[$i + 1];
-                        $i++;
-                    } elseif ($html[$i] === '"') {
-                        break;
-                    } else {
-                        $jsonStr .= $html[$i];
-                    }
+                $data = json_decode($body, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $this->say("  ✗ JSON decode failed.");
+                    break;
                 }
-                $state = @json_decode(stripcslashes($jsonStr), true);
-                if ($state) {
-                    $count += $this->processTgtData($state);
-                    if ($count > 0) return $count;
+
+                $products = $data['data']['search']['products'] ?? [];
+                $totalResults = (int)($data['data']['search']['search_response']['typed_metadata']['total_results'] ?? 0);
+
+                if (empty($products)) {
+                    $this->say("  No products returned.");
+                    break;
                 }
+
+                $this->say("  ✓ Got " . count($products) . " products (offset={$offset}, total={$totalResults})");
+
+                $batchSaved = $this->processProducts($products, $savedTotal);
+                $savedTotal += $batchSaved;
+
+                $offset += $pageSize;
+
+                // Stop paginating if: no discount deals left, or reached limit, or got all results
+                if ($batchSaved === 0 || $savedTotal >= $this->limit || $offset >= $totalResults) break;
+
+                sleep(rand(1, 2));
+
+            } while (count($products) >= $pageSize);
+
+            $this->say("  Subtotal: {$savedTotal} deals saved so far");
+
+            if ($savedTotal < $this->limit) {
+                sleep(rand(1, 2));
             }
         }
 
-        // ── FALLBACK: __NEXT_DATA__ (Target embeds this too) ─────────────
-        $ndPos = strpos($html, 'script id="__NEXT_DATA__"');
-        if ($ndPos !== false) {
-            $jsonStart = strpos($html, '>', $ndPos) + 1;
-            $jsonEnd   = strpos($html, '</script>', $jsonStart);
-            $nextData  = @json_decode(substr($html, $jsonStart, $jsonEnd - $jsonStart), true);
-            if ($nextData) {
-                $count += $this->processPreloadedState($nextData);
-            }
-        }
-
-        return $count;
+        $this->say("══ Done: {$savedTotal} deals saved ══");
+        $this->logResult('success', "target.com 50%+ (saved: {$savedTotal})");
     }
 
-    // ── Process Target's __TGT_DATA__ (React Query preloaded queries format) ──
-    private function processTgtData(array $state): int {
-        $count = 0;
-
-        // __TGT_DATA__ stores React Query cache under __PRELOADED_QUERIES__.queries
-        // Each entry is [[queryKey, params], data] format
-        $queries = $state['__PRELOADED_QUERIES__']['queries'] ?? [];
-        foreach ($queries as $entry) {
-            if (!is_array($entry) || count($entry) < 2) continue;
-            $data = $entry[1] ?? null;
-            if (!is_array($data)) continue;
-
-            // Look for product arrays at any depth within this query's data
-            $found = $this->findProductsInData($data);
-            foreach ($found as $item) {
-                if ($this->processTargetProduct($item)) $count++;
-            }
-        }
-
-        // Also try standard preloaded state paths
-        if ($count === 0) {
-            $count += $this->processPreloadedState($state);
-        }
-
-        return $count;
-    }
-
-    // ── Recursively find product arrays in Target's nested data ───────────────
-    private function findProductsInData(array $data, int $depth = 0): array {
-        if ($depth > 5) return []; // prevent infinite recursion
-
-        $products = [];
-
-        // Check if this looks like a product (has tcin or title)
-        if (isset($data['tcin']) || (isset($data['item']['tcin']))) {
-            return [$data];
-        }
-
-        // Known Target product list paths
-        foreach (['products', 'items', 'Item', 'product_summaries'] as $key) {
-            if (isset($data[$key]) && is_array($data[$key])) {
-                foreach ($data[$key] as $item) {
-                    if (is_array($item) && (isset($item['tcin']) || isset($item['item']['tcin']))) {
-                        $products[] = $item;
-                    }
-                }
-                if (!empty($products)) return $products;
-            }
-        }
-
-        // Recurse into nested arrays (limited depth)
-        foreach ($data as $val) {
-            if (is_array($val) && !empty($val)) {
-                $found = $this->findProductsInData($val, $depth + 1);
-                if (!empty($found)) {
-                    $products = array_merge($products, $found);
-                }
-            }
-        }
-
-        return $products;
-    }
-
-    // ── Process Target __PRELOADED_STATE__ ────────────────────────────────────
-    private function processPreloadedState(array $state): int {
-        $count = 0;
-
-        // Target's state paths for product listings
-        $paths = [
-            ['plp', 'items', 'Item'],
-            ['search', 'products'],
-            ['categoryPage', 'products'],
-            ['shelf', 'products'],
-        ];
-
-        foreach ($paths as $path) {
-            $node = $state;
-            foreach ($path as $key) {
-                $node = $node[$key] ?? null;
-                if (!$node) break;
-            }
-            if (!$node || !is_array($node)) continue;
-
-            $found = 0;
-            foreach ($node as $item) {
-                if ($this->processTargetProduct($item)) { $count++; $found++; }
-            }
-            if ($found > 0) break;
-        }
-        return $count;
-    }
-
-    // ── Process a single Target product ──────────────────────────────────────
-    private function processTargetProduct(array $item): bool {
-        // TCIN = Target's product ID
-        $tcin = $item['tcin'] ?? $item['item']['tcin'] ?? null;
-        if (!$tcin) return false;
-
-        // Title
-        $title = $item['item']['product_description']['title'] ??
-                 $item['product_description']['title']         ??
-                 $item['name']                                 ??
-                 $item['title']                                ?? '';
-        if (!$title || strlen($title) < 3) return false;
-
-        // ── Price extraction ────────────────────────────────────────────────
-        $priceInfo  = $item['price']      ?? $item['item']['price'] ?? [];
-        $orig = (float)(
-            $priceInfo['reg_retail']    ??
-            $priceInfo['list_price']    ??
-            $priceInfo['original']      ??
-            0
-        );
-        $sale = (float)(
-            $priceInfo['current_retail']??
-            $priceInfo['sale_price']    ??
-            $priceInfo['formatted_current_price'] ??
-            $priceInfo['current']       ??
-            0
-        );
-        $pct = (int)(
-            $priceInfo['save_percent']  ??
-            $priceInfo['percent_off']   ??
-            0
-        );
-
-        if ($sale <= 0) return false;
-
-        // Derive orig from pct
-        if ($orig <= $sale && $pct >= 50 && $sale > 0) {
-            $orig = round($sale / (1 - $pct / 100), 2);
-        }
-        // Calc pct
-        if ($pct < 50 && $orig > $sale && $sale > 0) {
-            $pct = $this->calcDiscount($orig, $sale);
-        }
-
-        if ($pct < 50 || $orig <= $sale) return false;
-
-        // ── Image ──────────────────────────────────────────────────────────
-        // Target images: https://target.scene7.com/is/image/Target/GUEST_TCIN
-        $image = $item['item']['enrichment']['images']['primary_image_url']    ??
-                 $item['enrichment']['images']['primary_image_url']            ??
-                 $item['item']['primary_image_url']                            ??
-                 $item['primary_image_url']                                    ??
-                 // Construct from TCIN if not available
-                 "https://target.scene7.com/is/image/Target/GUEST_{$tcin}?wid=500&hei=500";
-
-        // ── Rating ─────────────────────────────────────────────────────────
-        $ratingStats = $item['ratings_and_reviews']['statistics']   ??
-                       $item['item']['ratings_and_reviews']         ?? [];
-        $rating      = (float)($ratingStats['overall_average_rating'] ?? $ratingStats['average'] ?? 0);
-        $reviews     = (int)($ratingStats['total_review_count']       ?? $ratingStats['count']   ?? 0);
-
-        // ── Category ───────────────────────────────────────────────────────
-        $catRaw = $item['item']['merchandise_type_name']                       ??
-                  $item['item']['dept_name']                                   ?? '';
-        if (!$catRaw && isset($item['category']) && is_string($item['category'])) {
-            $catRaw = $item['category'];
-        }
-
-        // ── URL ────────────────────────────────────────────────────────────
-        $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', substr($title, 0, 60)));
-        $slug = trim($slug, '-');
-        $productUrl  = "https://www.target.com/p/{$slug}/-/A-{$tcin}";
-        $affiliateUrl= "https://www.target.com/p/{$slug}/-/A-{$tcin}?afid=50off";
-
-        return $this->saveDeal([
-            'title'          => trim($title),
-            'description'    => $this->extractTargetDesc($item),
-            'original_price' => $orig,
-            'sale_price'     => $sale,
-            'discount_pct'   => $pct,
-            'image_url'      => $image,
-            'product_url'    => $productUrl,
-            'affiliate_url'  => $affiliateUrl,
-            'category'       => $this->mapCategory($title . ' ' . $catRaw),
-            'rating'         => $rating > 0 ? $rating : null,
-            'review_count'   => $reviews,
-        ]);
-    }
-
-    // ── RedSky API ────────────────────────────────────────────────────────────
-    // Target's own public API — requires API-specific headers (not HTML Sec-Fetch-*)
-    private function queryRedSkyApi(string $keyword): int {
-        $visitorId = bin2hex(random_bytes(16)); // random visitor ID per request
-
-        $params = http_build_query([
-            'channel'                       => 'WEB',
-            'count'                         => 24,
+    private function buildApiUrl(string $categoryId, int $offset): string
+    {
+        return self::API_BASE . '?' . http_build_query([
+            'channel'    => 'WEB',
+            'count'      => 24,
             'default_purchasability_filter' => 'true',
-            'include_sponsored'             => 'false',
-            'keyword'                       => $keyword,
-            'offset'                        => 0,
-            'page'                          => '/s/' . urlencode($keyword),
-            'platform'                      => 'desktop',
-            'pricing_store_id'              => $this->storeId,
-            'store_id'                      => $this->storeId,
-            'visitor_id'                    => $visitorId,
-            'key'                           => $this->apiKey,
+            'include_sponsored' => 'false',
+            'category'   => $categoryId,
+            'offset'     => $offset,
+            'sortBy'     => 'DiscountHigh',
+            'key'        => self::API_KEY,
+            'pricing_store_id' => '3991',
         ]);
-
-        // Try v1 first, then fall back to checking alternate endpoint paths
-        $url = "https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2?{$params}";
-        $ch  = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 20,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_ENCODING       => '',
-            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-            CURLOPT_HTTPHEADER     => [
-                'Accept: application/json',
-                'Accept-Language: en-US,en;q=0.9',
-                'Origin: https://www.target.com',
-                'Referer: https://www.target.com/s?searchTerm=' . urlencode($keyword),
-                'x-application-name: web',
-            ],
-        ]);
-        $body = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($code !== 200 || !$body) {
-            $this->say("RedSky HTTP $code for keyword: $keyword");
-            // Return -1 for auth failures so caller can try a different API key
-            return ($code === 400 || $code === 401 || $code === 403) ? -1 : 0;
-        }
-
-        $data = @json_decode($body, true);
-        if (!$data) return 0;
-
-        $products = $data['data']['search']['products']                 ??
-                    $data['data']['search']['product_summaries']       ??
-                    $data['data']['plp_search']['product_summaries']   ?? [];
-
-        $count = 0;
-        foreach ($products as $product) {
-            if ($this->processTargetProduct($product)) $count++;
-        }
-        return $count;
     }
 
-    // ── Description helper ────────────────────────────────────────────────────
-    private function extractTargetDesc(array $item): ?string {
-        $bullets = $item['item']['product_description']['bullet_description'] ??
-                   $item['product_description']['bullet_description']         ?? [];
-        if ($bullets) {
-            $text = implode(' ', array_slice($bullets, 0, 2));
-            return substr(strip_tags($text), 0, 500) ?: null;
+    private function apiHeaders(): array
+    {
+        return [
+            'Accept: application/json',
+            'Accept-Language: en-US,en;q=0.9',
+            'Origin: https://www.target.com',
+            'Sec-Fetch-Dest: empty',
+            'Sec-Fetch-Mode: cors',
+            'Sec-Fetch-Site: same-site',
+        ];
+    }
+
+    private function processProducts(array $products, int $alreadySaved): int
+    {
+        $saved = 0;
+
+        foreach ($products as $prod) {
+            if (($alreadySaved + $saved) >= $this->limit) break;
+
+            // Title
+            $title = $prod['item']['product_description']['title'] ?? null;
+            if (!$title) continue;
+            $title = trim(html_entity_decode(strip_tags($title), ENT_QUOTES, 'UTF-8'));
+
+            // TCIN (Target product ID)
+            $tcin = $prod['tcin'] ?? null;
+            if (!$tcin) continue;
+
+            // Pricing
+            $pricing = $this->extractPricing($prod['price'] ?? []);
+            if (!$pricing) continue;
+
+            // Image — comes as full URL directly from API
+            $imageUrl = $prod['item']['enrichment']['images']['primary_image_url'] ?? null;
+            if ($imageUrl) {
+                $imageUrl = $this->upgradeImageSize($imageUrl);
+            }
+
+            // URL
+            $urlSlug = $this->buildUrlSlug($title);
+            $productUrl = "https://www.target.com/p/{$urlSlug}/-/A-{$tcin}";
+
+            // Category
+            $catRaw = $prod['item']['product_classification']['product_type_name'] ?? '';
+
+            if ($this->saveDeal([
+                'title'          => $title,
+                'original_price' => $pricing['original'],
+                'sale_price'     => $pricing['sale'],
+                'discount_pct'   => $pricing['pct'],
+                'image_url'      => $imageUrl,
+                'product_url'    => $productUrl,
+                'affiliate_url'  => $productUrl,
+                'category'       => $this->mapCategory($catRaw ?: $title),
+                'rating'         => isset($prod['ratings_and_reviews']['statistics']['rating']['average'])
+                                     ? (float)$prod['ratings_and_reviews']['statistics']['rating']['average']
+                                     : null,
+                'review_count'   => (int)($prod['ratings_and_reviews']['statistics']['total_review_count'] ?? 0),
+            ])) {
+                $saved++;
+            }
         }
-        $desc = $item['item']['product_description']['soft_bullets']['bullets'][0] ??
-                $item['description'] ?? null;
-        return $desc ? substr(strip_tags($desc), 0, 500) : null;
+
+        return $saved;
+    }
+
+    private function extractPricing(array $price): ?array
+    {
+        $sale     = (float)($price['current_retail'] ?? $price['formatted_current_price_value'] ?? 0);
+        $original = (float)($price['reg_retail'] ?? $price['formatted_comparison_price_value'] ?? 0);
+        $pct      = (int)($price['save_percent'] ?? 0);
+
+        if ($sale <= 0) return null;
+
+        // Reconstruct original if missing
+        if ($original <= 0 && $pct > 0) {
+            $original = round($sale / (1 - $pct / 100), 2);
+        }
+
+        // Recalculate pct if we have both prices
+        if ($original > 0 && $sale < $original) {
+            $calcPct = $this->calcDiscount($original, $sale);
+            $pct = max($pct, $calcPct);
+        }
+
+        if ($pct < 50 || $original <= 0 || $original <= $sale) return null;
+
+        return ['sale' => $sale, 'original' => $original, 'pct' => $pct];
+    }
+
+    private function upgradeImageSize(string $url): string
+    {
+        // Target Scene7 URLs support wid/hei params — request 500px
+        if (str_contains($url, 'scene7.com')) {
+            $base = strtok($url, '?');
+            return $base . '?wid=500&hei=500&fmt=webp&qlt=80';
+        }
+        return $url;
+    }
+
+    private function buildUrlSlug(string $title): string
+    {
+        $slug = strtolower($title);
+        $slug = preg_replace('/[^a-z0-9\s-]/', '', $slug);
+        $slug = preg_replace('/\s+/', '-', trim($slug));
+        $slug = preg_replace('/-+/', '-', $slug);
+        return substr($slug, 0, 100);
     }
 }
