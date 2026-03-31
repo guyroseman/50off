@@ -9,10 +9,8 @@
  * current price, regular price, and save_percent for each item.
  * We browse by category with sortBy=DiscountHigh to surface 50%+ deals first.
  *
- * ⚠ IMPORTANT — IP RESTRICTION:
- * The RedSky API returns 403 from Hostinger datacenter IPs.
- * This scraper must run via GitHub Actions (Ubuntu runners are not blocked).
- * It uses BaseScraper's JSON mode to output deals without a DB connection.
+ * The API requires a `page` param (category path) and a valid `key` extracted
+ * from the Target website. Works from Hostinger when both are provided.
  *
  * AFFILIATE:
  * ──────────
@@ -27,28 +25,27 @@ class TargetScraper extends BaseScraper
     protected string $store = 'target';
     private   int    $limit = 90;       // max deals per run
 
-    private const API_KEY = 'ff457966e64d5e877fdbad070f276d18ecec4a01';
+    private const API_KEY = '9f36aeafbe60771e321a7cc95a78140772ab3e96';
     private const API_BASE = 'https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2';
 
-    // Category IDs confirmed to have 50%+ deals (browsed 2026-03)
-    // format: [ categoryId => label ]
+    // Category IDs + their page paths (required by API)
+    // format: [ categoryId => [label, pagePath] ]
     private const CATEGORIES = [
-        '5xtm1' => 'Food & Beverage',   // most deals
-        '5xtgz' => 'Toys',
-        '5xtk2' => 'Kitchen',
-        '5xtg6' => 'Electronics',
-        '5xtk9' => 'Furniture',
-        '5q0ga' => 'Clearance',
+        '5q0ga' => ['Clearance',       '/c/clearance/-/N-5q0ga'],
+        '5xtm1' => ['Food & Beverage', '/c/food-beverages/-/N-5xtm1'],
+        '5xtgz' => ['Toys',            '/c/toys/-/N-5xtgz'],
+        '5xtk2' => ['Kitchen',         '/c/kitchen-dining/-/N-5xtk2'],
+        '5xtg6' => ['Electronics',     '/c/electronics/-/N-5xtg6'],
+        '5xtk9' => ['Furniture',       '/c/furniture/-/N-5xtk9'],
     ];
 
     public function scrape(): void
     {
         $this->say('=== Target Scraper — target.com (50%+ off) ===');
-        $this->say('  Note: requires GitHub Actions IP (403 from datacenter)');
 
         $savedTotal = 0;
 
-        foreach (self::CATEGORIES as $catId => $catLabel) {
+        foreach (self::CATEGORIES as $catId => [$catLabel, $catPage]) {
             if ($savedTotal >= $this->limit) break;
 
             $this->say("→ Category: {$catLabel} ({$catId})");
@@ -56,8 +53,8 @@ class TargetScraper extends BaseScraper
             $pageSize = 24;
 
             do {
-                $url = $this->buildApiUrl($catId, $offset);
-                $body = $this->fetch($url, $this->apiHeaders(), 'https://www.target.com/');
+                $url = $this->buildApiUrl($catId, $catPage, $offset);
+                $body = $this->fetch($url, $this->apiHeaders($catPage), 'https://www.target.com/');
 
                 if (!$body) {
                     $this->say("  ✗ No response. Skipping category.");
@@ -103,7 +100,7 @@ class TargetScraper extends BaseScraper
         $this->logResult('success', "target.com 50%+ (saved: {$savedTotal})");
     }
 
-    private function buildApiUrl(string $categoryId, int $offset): string
+    private function buildApiUrl(string $categoryId, string $categoryPage, int $offset): string
     {
         return self::API_BASE . '?' . http_build_query([
             'channel'    => 'WEB',
@@ -111,19 +108,22 @@ class TargetScraper extends BaseScraper
             'default_purchasability_filter' => 'true',
             'include_sponsored' => 'false',
             'category'   => $categoryId,
+            'page'       => $categoryPage,
             'offset'     => $offset,
             'sortBy'     => 'DiscountHigh',
             'key'        => self::API_KEY,
             'pricing_store_id' => '3991',
+            'visitor_id' => '019D428271750200BEF0EA343724646B',
         ]);
     }
 
-    private function apiHeaders(): array
+    private function apiHeaders(string $categoryPage): array
     {
         return [
             'Accept: application/json',
             'Accept-Language: en-US,en;q=0.9',
             'Origin: https://www.target.com',
+            'Referer: https://www.target.com' . $categoryPage,
             'Sec-Fetch-Dest: empty',
             'Sec-Fetch-Mode: cors',
             'Sec-Fetch-Site: same-site',
