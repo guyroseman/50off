@@ -8,7 +8,12 @@ $saved = savings((float)$deal['original_price'], (float)$deal['sale_price']);
 
 $imgSrc = '/assets/images/placeholder.svg';
 if (!empty($deal['image_url'])) {
-    $imgSrc = '/api/img.php?url=' . urlencode($deal['image_url']);
+    // eBay and some CDNs don't block hotlinking — load directly for speed
+    $imgHost = parse_url($deal['image_url'], PHP_URL_HOST) ?? '';
+    $directHosts = ['i.ebayimg.com', 'thumbs.ebaystatic.com', 'm.media-amazon.com', 'i.target.com', 'target.scene7.com'];
+    $isDirect = false;
+    foreach ($directHosts as $dh) { if (str_contains($imgHost, $dh)) { $isDirect = true; break; } }
+    $imgSrc = $isDirect ? $deal['image_url'] : '/api/img.php?url=' . urlencode($deal['image_url']);
 }
 
 // Badge logic: more exciting labels at higher discounts
