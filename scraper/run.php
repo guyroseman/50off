@@ -6,27 +6,29 @@
  *
  *  SOURCES:
  *  ┌─────────────────────────────────────────────────────────────────────┐
- *  │ Amazon  (amazon.com US) — deals filtered to 50–100% off            │
- *  │ Target  (target.com)    — top deals + clearance, 50%+ off          │
- *  │                           ⚠ Target needs GitHub Actions IP         │
- *  │ Walmart (walmart.com)   — ⚠ blocked by Akamai, stub only           │
+ *  │ Amazon    (amazon.com) — deals page + 12 category search seeds      │
+ *  │ Target    (target.com) — RedSky API, 6 categories                   │
+ *  │ Walmart   (walmart.com)— ⚠ blocked by Akamai, stub only             │
+ *  │ Best Buy  (bestbuy.com)— clearance/sale pages, embedded JSON        │
+ *  │ Costco    (costco.com) — online deals & clearance                   │
+ *  │ Home Depot(homedepot)  — Special Buy JSON API + HTML fallback       │
+ *  │ 6pm       (6pm.com)    — sale pages, window.__INITIAL_STATE__ JSON  │
  *  └─────────────────────────────────────────────────────────────────────┘
  *
  *  USAGE:
- *    php scraper/run.php           # run all scrapers (amazon + target + walmart)
- *    php scraper/run.php all       # same
- *    php scraper/run.php amazon    # Amazon only
- *    php scraper/run.php target    # Target only
- *    php scraper/run.php walmart   # Walmart only (stub — logs block message)
- *    php scraper/run.php seed      # seed data only (no network)
+ *    php scraper/run.php              # run all scrapers
+ *    php scraper/run.php all          # same
+ *    php scraper/run.php amazon       # Amazon only
+ *    php scraper/run.php target       # Target only
+ *    php scraper/run.php bestbuy      # Best Buy only
+ *    php scraper/run.php costco       # Costco only
+ *    php scraper/run.php homedepot    # Home Depot only
+ *    php scraper/run.php 6pm          # 6pm only
+ *    php scraper/run.php retail       # Amazon + Target + BestBuy + Costco + HD + 6pm
+ *    php scraper/run.php seed         # seed data only (no network)
  *
- *  GITHUB ACTIONS MODE (SCRAPER_OUTPUT=json):
- *    SCRAPER_OUTPUT=json php scraper/run.php target
- *    Outputs JSON to stdout, no DB connection needed. Used by GitHub Actions
- *    to run Target scraper and POST results to /api/submit-deals.php.
- *
- *  CRON (every 4 hours — Amazon only, runs on Hostinger):
- *    0 *\/4 * * * /usr/bin/php /path/to/50off/scraper/run.php amazon >> /tmp/50off.log 2>&1
+ *  CRON (every 3 hours — recommended):
+ *    0 *\/3 * * * /usr/bin/php /path/to/50off/scraper/run.php retail >> /tmp/50off.log 2>&1
  */
 
 define('ROOT', dirname(__DIR__));
@@ -42,6 +44,10 @@ require_once __DIR__ . '/SeedScraper.php';
 require_once __DIR__ . '/AmazonScraper.php';
 require_once __DIR__ . '/WalmartScraper.php';
 require_once __DIR__ . '/TargetScraper.php';
+require_once __DIR__ . '/BestBuyScraper.php';
+require_once __DIR__ . '/CostcoScraper.php';
+require_once __DIR__ . '/HomeDepotScraper.php';
+require_once __DIR__ . '/SixPmScraper.php';
 
 if ($jsonMode) {
     BaseScraper::enableJsonMode();
@@ -56,34 +62,41 @@ if (!$jsonMode) {
 // ── Which scrapers to run ────────────────────────────────────────────────────
 $requested = $argv[1] ?? 'all';
 $run = match($requested) {
-    'seed'    => ['seed'],
-    'amazon'  => ['amazon'],
-    'walmart' => ['walmart'],
-    'target'  => ['target'],
-    default   => ['amazon', 'target', 'walmart'],   // 'all' or no arg
+    'seed'       => ['seed'],
+    'amazon'     => ['amazon'],
+    'walmart'    => ['walmart'],
+    'target'     => ['target'],
+    'bestbuy'    => ['bestbuy'],
+    'costco'     => ['costco'],
+    'homedepot'  => ['homedepot'],
+    '6pm'        => ['6pm'],
+    'retail'     => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm'],
+    default      => ['amazon', 'target', 'walmart', 'bestbuy', 'costco', 'homedepot', '6pm'],
 };
 
 // ── DB setup (DB mode only) ───────────────────────────────────────────────────
 if (!$jsonMode) {
     $db = getDB();
 
-    // Ensure unique key exists (required for upsert ON DUPLICATE KEY UPDATE)
     try { $db->exec("ALTER TABLE deals ADD UNIQUE KEY uq_product_url (product_url(255))"); }
-    catch (\PDOException) {} // already exists
+    catch (\PDOException) {}
 
-    // Expire old deals
     $exp = $db->prepare("UPDATE deals SET is_active=0
         WHERE scraped_at < NOW() - INTERVAL 3 DAY AND is_featured=0");
     $exp->execute();
     echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n\n";
 }
 
-// ── Run scrapers ─────────────────────────────────────────────────────────────
+// ── Scraper map ───────────────────────────────────────────────────────────────
 $scrapers = [
-    'seed'    => fn() => new SeedScraper(),
-    'amazon'  => fn() => new AmazonScraper(),
-    'walmart' => fn() => new WalmartScraper(),
-    'target'  => fn() => new TargetScraper(),
+    'seed'      => fn() => new SeedScraper(),
+    'amazon'    => fn() => new AmazonScraper(),
+    'walmart'   => fn() => new WalmartScraper(),
+    'target'    => fn() => new TargetScraper(),
+    'bestbuy'   => fn() => new BestBuyScraper(),
+    'costco'    => fn() => new CostcoScraper(),
+    'homedepot' => fn() => new HomeDepotScraper(),
+    '6pm'       => fn() => new SixPmScraper(),
 ];
 
 if (!$jsonMode) {
@@ -91,11 +104,12 @@ if (!$jsonMode) {
 }
 
 foreach ($run as $name) {
+    if (!isset($scrapers[$name])) {
+        echo "  ⚠ Unknown scraper: {$name}\n";
+        continue;
+    }
     if (!$jsonMode) {
-        $label = strtoupper($name);
-        echo str_repeat('─', 60) . "\n";
-        echo " ▶  $label\n";
-        echo str_repeat('─', 60) . "\n";
+        echo str_repeat('─', 60) . "\n ▶  " . strtoupper($name) . "\n" . str_repeat('─', 60) . "\n";
     }
     try {
         $scrapers[$name]()->scrape();
@@ -106,15 +120,13 @@ foreach ($run as $name) {
     if (!$jsonMode) echo "\n";
 }
 
-// ── JSON mode: output deals as JSON and exit ─────────────────────────────────
+// ── JSON mode output ─────────────────────────────────────────────────────────
 if ($jsonMode) {
-    $deals = BaseScraper::getJsonDeals();
-    echo json_encode($deals);
+    echo json_encode(BaseScraper::getJsonDeals());
     exit(0);
 }
 
-// ── DB mode: print summary ────────────────────────────────────────────────────
-// Reconnect in case MySQL dropped the connection during long scraping
+// ── Summary ───────────────────────────────────────────────────────────────────
 try { $db->query("SELECT 1"); } catch (\PDOException) { $db = getDB(); }
 
 $after = (int)$db->query("SELECT COUNT(*) FROM deals WHERE is_active=1")->fetchColumn();
@@ -122,19 +134,20 @@ $rows  = $db->query("
     SELECT store,
            COUNT(*) as deals,
            ROUND(AVG(discount_pct)) as avg_pct,
-           MIN(sale_price) as lowest
+           MIN(sale_price) as lowest,
+           MAX(discount_pct) as max_pct
     FROM deals WHERE is_active=1 AND discount_pct>=50
     GROUP BY store ORDER BY deals DESC
 ")->fetchAll(\PDO::FETCH_ASSOC);
 
 echo "$line\n RESULTS\n$line\n";
-printf(" %-14s  %6s  %10s  %10s\n", 'STORE', 'DEALS', 'AVG DISC', 'LOWEST $');
-echo str_repeat('─', 50) . "\n";
+printf(" %-14s  %6s  %8s  %8s  %10s\n", 'STORE', 'DEALS', 'AVG OFF', 'MAX OFF', 'LOWEST $');
+echo str_repeat('─', 56) . "\n";
 foreach ($rows as $r) {
-    printf(" %-14s  %6d  %9d%%  %9s\n",
-        $r['store'], $r['deals'], $r['avg_pct'],
+    printf(" %-14s  %6d  %7d%%  %7d%%  %9s\n",
+        $r['store'], $r['deals'], $r['avg_pct'], $r['max_pct'],
         '$'.number_format($r['lowest'], 2));
 }
-echo str_repeat('─', 50) . "\n";
+echo str_repeat('─', 56) . "\n";
 printf(" %-14s  %6d  (+%d new)\n", 'TOTAL', $after, max(0, $after - $before));
 echo "\n Done: " . date('Y-m-d H:i:s') . "\n$line\n\n";

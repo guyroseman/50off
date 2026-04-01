@@ -99,7 +99,7 @@ function trackClick(int $dealId): void {
         $ip   = hash('sha256', $_SERVER['REMOTE_ADDR'] ?? '');
         $ua   = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
         $stmt->execute([$dealId, $ip, $ua]);
-    } catch (Exception $e) {}
+    } catch (Exception) {}
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -117,6 +117,7 @@ function storeLogo(string $store): string {
         'ebay'      => '🔴',
         'costco'    => '⭕',
         'homedepot' => '🟠',
+        '6pm'       => '👠',
         'lowes'     => '🔷',
         'macys'     => '⭐',
         'kohls'     => '💙',

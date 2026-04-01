@@ -90,38 +90,119 @@ class AmazonScraper extends BaseScraper
         $this->logResult('success', "amazon.com US 50%+ (saved: {$savedTotal})");
     }
 
-    // ── Scrape amazon.com/s?rh=p_8:50- search result pages ───────────────────
+    // ── Search category seeds: different dept refinements for variety ─────────
+    // Each is [url, label] — p_8:50- = 50%+ off filter, combined with dept node
+    private const SEARCH_SEEDS = [
+        // Generic 50%+ off sorted by discount (broad)
+        ['https://www.amazon.com/s?rh=p_8%3A50-&s=discount-rank',              'All 50%+'],
+        // Electronics
+        ['https://www.amazon.com/s?rh=n%3A172282%2Cp_8%3A50-&s=discount-rank', 'Electronics'],
+        // Clothing
+        ['https://www.amazon.com/s?rh=n%3A7141123011%2Cp_8%3A50-&s=discount-rank', 'Clothing'],
+        // Home & Kitchen
+        ['https://www.amazon.com/s?rh=n%3A1055398%2Cp_8%3A50-&s=discount-rank', 'Home & Kitchen'],
+        // Toys
+        ['https://www.amazon.com/s?rh=n%3A165793011%2Cp_8%3A50-&s=discount-rank', 'Toys'],
+        // Sports & Outdoors
+        ['https://www.amazon.com/s?rh=n%3A3375251%2Cp_8%3A50-&s=discount-rank', 'Sports'],
+        // Beauty
+        ['https://www.amazon.com/s?rh=n%3A3760911%2Cp_8%3A50-&s=discount-rank', 'Beauty'],
+        // Health
+        ['https://www.amazon.com/s?rh=n%3A3760901%2Cp_8%3A50-&s=discount-rank', 'Health'],
+        // Kitchen
+        ['https://www.amazon.com/s?rh=n%3A284507%2Cp_8%3A50-&s=discount-rank', 'Kitchen'],
+        // Books
+        ['https://www.amazon.com/s?rh=n%3A283155%2Cp_8%3A50-&s=discount-rank', 'Books'],
+        // Tools
+        ['https://www.amazon.com/s?rh=n%3A228013%2Cp_8%3A50-&s=discount-rank', 'Tools'],
+        // Pet Supplies
+        ['https://www.amazon.com/s?rh=n%3A2619533011%2Cp_8%3A50-&s=discount-rank', 'Pets'],
+    ];
+
+    // ── Scrape search result pages across multiple categories ─────────────────
     private function scrapeSearchPages(): int
     {
-        $this->say("→ [2/2] Search results (50%+ off, sorted by discount)...");
+        $this->say("→ [2/2] Search results — " . count(self::SEARCH_SEEDS) . " category seeds...");
         $saved = 0;
+        $consecutiveBlocks = 0;
 
-        for ($page = 1; $page <= 8 && $saved < 120; $page++) {
-            $url = 'https://www.amazon.com/s?rh=p_8%3A50-&s=discount-rank&page=' . $page;
-            $this->say("  Search page {$page}...");
-            sleep(rand(2, 4));
-
-            $html = $this->fetchAmazonPage($url);
-            if (!$html) {
-                $this->say("  ✗ Failed page {$page}");
+        foreach (self::SEARCH_SEEDS as [$baseUrl, $label]) {
+            if ($saved >= 200) break;
+            if ($consecutiveBlocks >= 2) {
+                $this->say("  Too many blocks, stopping early.");
                 break;
             }
 
-            // Check for captcha / robot check
-            if (stripos($html, 'robot check') !== false || stripos($html, 'captcha') !== false) {
-                $this->say("  ✗ Bot check triggered. Stopping search scrape.");
-                break;
+            $this->say("  Category: {$label}...");
+            sleep(rand(3, 6));
+
+            // Fetch 2 pages per category seed for variety
+            for ($page = 1; $page <= 2; $page++) {
+                $url = $baseUrl . ($page > 1 ? '&page=' . $page : '');
+                $html = $this->fetchAmazonPage($url);
+
+                if (!$html) {
+                    $this->say("    ✗ Failed [{$label} p{$page}]");
+                    $consecutiveBlocks++;
+                    break;
+                }
+
+                if (stripos($html, 'robot check') !== false || stripos($html, 'captcha') !== false) {
+                    $this->say("    ✗ Bot check on [{$label} p{$page}]");
+                    $consecutiveBlocks++;
+                    break;
+                }
+                $consecutiveBlocks = 0;
+
+                // Try __NEXT_DATA__ first (richer, faster)
+                $pageSaved = $this->parseSearchNextData($html);
+
+                // Fall back to HTML DOM parsing
+                if ($pageSaved === 0) {
+                    $pageSaved = $this->parseSearchResults($html);
+                }
+
+                $this->say("    ✓ [{$label} p{$page}]: {$pageSaved} deals");
+                $saved += $pageSaved;
+
+                if ($pageSaved === 0 || $saved >= 200) break;
+                if ($page < 2) sleep(rand(2, 4));
             }
-
-            $pageSaved = $this->parseSearchResults($html);
-            $this->say("  ✓ Page {$page}: {$pageSaved} deals");
-            $saved += $pageSaved;
-
-            // If no results found, Amazon may have blocked or we've exhausted pages
-            if ($pageSaved === 0) break;
         }
 
         $this->say("  Search total: {$saved}");
+        return $saved;
+    }
+
+    // ── Extract products from Amazon's __NEXT_DATA__ / embedded JSON ──────────
+    private function parseSearchNextData(string $html): int
+    {
+        // Amazon search pages embed product data in a data-asin-metadata attribute
+        // and also in a JSON blob assigned to a script tag
+        $saved = 0;
+
+        // Method 1: data-asin-metadata JSON on each product tile
+        // This is richer — has BSR, review count, price history
+        if (preg_match_all('/data-asin-metadata="([^"]+)"/i', $html, $m)) {
+            foreach ($m[1] as $encoded) {
+                $json = html_entity_decode($encoded, ENT_QUOTES, 'UTF-8');
+                $meta = json_decode($json, true);
+                if (!$meta || json_last_error() !== JSON_ERROR_NONE) continue;
+                // This metadata doesn't always have pricing — skip, fall through to DOM parser
+            }
+        }
+
+        // Method 2: Extract from P13n (personalisation) JSON blobs which have pricing
+        if (preg_match_all('/"asin"\s*:\s*"([A-Z0-9]{10})"[^}]{0,500}"averageRating"\s*:\s*([\d.]+)[^}]{0,200}"numRatings"\s*:\s*(\d+)/s', $html, $m, PREG_SET_ORDER)) {
+            // We have ASIN + ratings but not pricing in this path — skip
+        }
+
+        // Method 3: Look for the raw product data array Amazon sometimes embeds
+        if (preg_match('/data-cel-widget="search_result_\d+"\s[^>]*data-asin="([^"]+)"[^>]*>/i', $html, $m)) {
+            // This confirms the page has server-rendered results — let DOM parser handle it
+            return 0;
+        }
+
         return $saved;
     }
 
