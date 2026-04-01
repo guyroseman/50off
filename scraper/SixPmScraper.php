@@ -31,12 +31,17 @@ class SixPmScraper extends BaseScraper
     private   int    $limit = 60;
 
     // Sale pages sorted by highest % off first
+    // 6pm URL format: /c/{category} with query param s=PercentOff/desc
+    // Note: /c/sale returns 404 — use category-specific pages with sale flag
     private const PAGES = [
-        'https://www.6pm.com/c/sale?s=PercentOff/desc&pge=0',
-        'https://www.6pm.com/c/sale?s=PercentOff/desc&pge=1',
         'https://www.6pm.com/c/shoes?s=PercentOff/desc&pge=0',
+        'https://www.6pm.com/c/shoes?s=PercentOff/desc&pge=1',
         'https://www.6pm.com/c/clothing?s=PercentOff/desc&pge=0',
-        'https://www.6pm.com/c/bags-handbags?s=PercentOff/desc&pge=0',
+        'https://www.6pm.com/c/clothing?s=PercentOff/desc&pge=1',
+        'https://www.6pm.com/c/handbags?s=PercentOff/desc&pge=0',
+        'https://www.6pm.com/c/sandals?s=PercentOff/desc&pge=0',
+        'https://www.6pm.com/c/sneakers?s=PercentOff/desc&pge=0',
+        'https://www.6pm.com/c/boots?s=PercentOff/desc&pge=0',
     ];
 
     public function scrape(): void
@@ -68,11 +73,14 @@ class SixPmScraper extends BaseScraper
 
             $this->say("  ✓ " . number_format(strlen($html)) . " bytes");
 
-            // Try embedded __INITIAL_STATE__ JSON
-            $n = $this->parseInitialState($html);
+            // Try __NEXT_DATA__ first (confirmed server-rendered on 6pm)
+            $n = $this->parseNextData($html);
 
-            // Fall back to __NEXT_DATA__
-            if ($n === 0) $n = $this->parseNextData($html);
+            // Fall back to __INITIAL_STATE__ / __APP_STATE__
+            if ($n === 0) $n = $this->parseInitialState($html);
+
+            // Fall back to any embedded JSON product arrays
+            if ($n === 0) $n = $this->parseEmbeddedJson($html);
 
             // Fall back to HTML product tiles
             if ($n === 0) $n = $this->parseHtmlTiles($html);
@@ -122,7 +130,7 @@ class SixPmScraper extends BaseScraper
     }
 
     // ── Fallback: __NEXT_DATA__ ───────────────────────────────────────────────
-    // NOTE: 6pm __NEXT_DATA__ path confirmed: props.pageProps.initialData.products[]
+    // NOTE: 6pm __NEXT_DATA__ confirmed path: props.pageProps.initialData.products[]
     // Prices are in CENTS (integer) — must divide by 100
     private function parseNextData(string $html): int
     {
@@ -132,18 +140,61 @@ class SixPmScraper extends BaseScraper
         $data = json_decode($m[1], true);
         if (!$data || json_last_error() !== JSON_ERROR_NONE) return 0;
 
-        // Confirmed path: props.pageProps.initialData.products[]
-        $products = $data['props']['pageProps']['initialData']['products']
-                 ?? $data['props']['pageProps']['products']
-                 ?? $data['props']['pageProps']['searchResult']['list']
-                 ?? $data['props']['pageProps']['initialState']['products']['list']
+        $pp = $data['props']['pageProps'] ?? [];
+
+        $products = $pp['initialData']['products']          // confirmed primary
+                 ?? $pp['initialData']['results']
+                 ?? $pp['products']
+                 ?? $pp['searchResult']['list']
+                 ?? $pp['results']
+                 ?? $pp['initialState']['products']['list']
                  ?? [];
 
-        if (empty($products)) return 0;
+        // Deep search: if still empty, look for any array with productId keys
+        if (empty($products)) {
+            array_walk_recursive($pp, function($val, $key) use (&$products) {
+                if ($key === 'products' && is_array($val) && !empty($val) && isset($val[0]['productId'])) {
+                    $products = $val;
+                }
+            });
+        }
+
+        if (empty($products)) {
+            $this->say("  __NEXT_DATA__ present but no products found");
+            return 0;
+        }
         $this->say("  Found " . count($products) . " products in __NEXT_DATA__");
 
         // Flag that prices need cents→dollars conversion
         return $this->processProducts($products, true);
+    }
+
+    // ── Scan for any JSON product array in page scripts ───────────────────────
+    private function parseEmbeddedJson(string $html): int
+    {
+        // Look for patterns like "productId":"xxx","productName":"..."
+        // and extract the surrounding JSON object
+        if (!preg_match_all('/"productId"\s*:\s*"[^"]{5,}"/', $html, $hits)) return 0;
+        $this->say("  Found " . count($hits[0]) . " productId hits — trying JSON extraction");
+
+        // Try to extract a JSON array containing these products
+        foreach ([
+            '/"products"\s*:\s*(\[.+?\])\s*[,}]/s',
+            '/"results"\s*:\s*(\[.+?\])\s*[,}]/s',
+            '/"items"\s*:\s*(\[.+?\])\s*[,}]/s',
+        ] as $pattern) {
+            if (preg_match($pattern, $html, $m)) {
+                $arr = json_decode($m[1], true);
+                if ($arr && json_last_error() === JSON_ERROR_NONE && count($arr) > 0) {
+                    $this->say("  Extracted " . count($arr) . " items from embedded JSON array");
+                    // Try both raw and cents mode
+                    $saved = $this->processProducts($arr, false);
+                    if ($saved === 0) $saved = $this->processProducts($arr, true);
+                    return $saved;
+                }
+            }
+        }
+        return 0;
     }
 
     // ── Process product list (either source) ──────────────────────────────────

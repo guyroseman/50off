@@ -55,6 +55,7 @@ abstract class BaseScraper {
                 CURLOPT_MAXREDIRS      => 5,
                 CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_ENCODING       => '',
+                CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,  // avoid HTTP/2 stream errors
                 CURLOPT_USERAGENT      => $ua,
                 CURLOPT_REFERER        => $referer ?: 'https://www.google.com/',
                 CURLOPT_HTTPHEADER     => array_merge([
