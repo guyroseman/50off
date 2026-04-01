@@ -36,6 +36,21 @@ class EbayScraper extends BaseScraper {
         $url = $d['product_url'] ?? '';
         if (!$url || isset($this->seenUrls[$url])) return false;
         $this->seenUrls[$url] = true;
+
+        // Upgrade eBay image URLs to larger size (s-l225 → s-l500)
+        if (!empty($d['image_url'])) {
+            $d['image_url'] = preg_replace('/s-l\d+\./', 's-l500.', $d['image_url']);
+        }
+
+        // Skip tracking pixel images
+        if (!empty($d['image_url']) && (
+            str_contains($d['image_url'], 's_1x2.gif') ||
+            str_contains($d['image_url'], '1x1') ||
+            str_contains($d['image_url'], 'pixel')
+        )) {
+            $d['image_url'] = null;
+        }
+
         return $this->saveDeal($d);
     }
 
@@ -69,128 +84,99 @@ class EbayScraper extends BaseScraper {
             'https://www.ebay.com/deals/toys-hobbies',
         ];
 
+        // Force US locale for USD prices
+        $headers = [
+            'Accept-Language: en-US,en;q=0.9',
+            'Cookie: dp1=bl/US/;',
+        ];
+
         foreach ($urls as $url) {
-            $html = $this->fetch($url, [], 'https://www.ebay.com/');
+            $html = $this->fetch($url, $headers, 'https://www.ebay.com/');
             if (!$html) continue;
+
+            $this->say('  ✓ ' . number_format(strlen($html)) . ' bytes');
 
             $xpath = $this->loadDom($html);
             if (!$xpath) continue;
 
-            // eBay deals page items
-            $this->parseEbayDealsHtml($xpath, $url);
+            $n = $this->parseEbayDealsHtml($xpath, $url);
+            $this->say("  → {$n} deals from " . basename(parse_url($url, PHP_URL_PATH) ?: 'deals'));
             sleep(1);
         }
     }
 
-    private function parseEbayDealsHtml(\DOMXPath $xpath, string $pageUrl): void {
-        // eBay deals page uses data attributes and structured markup
-        // Try multiple selectors for different page formats
+    private function parseEbayDealsHtml(\DOMXPath $xpath, string $pageUrl): int {
+        $saved = 0;
 
-        // Method: find JSON data embedded in page
-        $scripts = $xpath->query('//script[not(@src)]');
-        foreach ($scripts as $script) {
-            $code = $script->textContent;
+        // eBay uses dne-itemtile class for deal cards (skip "show more" tiles)
+        $tiles = $xpath->query(
+            '//*[contains(@class,"dne-itemtile") and not(contains(@class,"dne-show-more"))]'
+        );
 
-            // eBay embeds deal data as window.__PRELOADED_STATE__
-            if (str_contains($code, '__PRELOADED_STATE__')) {
-                if (preg_match('/window\.__PRELOADED_STATE__\s*=\s*({.+?});\s*(?:window|<\/script>)/s', $code, $m)) {
-                    $data = @json_decode($m[1], true);
-                    if ($data) { $this->parseEbayStateData($data); return; }
-                }
-            }
-
-            // eBay also uses window.__DWN_DATA__
-            if (str_contains($code, '"discountedPrice"') || str_contains($code, '"originalPrice"')) {
-                // Try to extract deal objects
-                preg_match_all('/"title"\s*:\s*"([^"]+)".*?"discountedPrice"\s*:\s*\{[^}]*"value"\s*:\s*"([\d.]+)".*?"originalPrice"\s*:\s*\{[^}]*"value"\s*:\s*"([\d.]+)"/s', $code, $matches, PREG_SET_ORDER);
-                foreach ($matches as $m) {
-                    $sale = (float)$m[2];
-                    $orig = (float)$m[3];
-                    $pct  = $this->calcDiscount($orig, $sale);
-                    if ($pct < 50) continue;
-
-                    $this->saveEbayDeal([
-                        'title'          => $m[1],
-                        'original_price' => $orig,
-                        'sale_price'     => $sale,
-                        'discount_pct'   => $pct,
-                        'product_url'    => $pageUrl,
-                        'affiliate_url'  => $pageUrl,
-                        'category'       => $this->mapCategory($m[1]),
-                    ]);
-                }
-            }
+        if (!$tiles || $tiles->length === 0) {
+            $this->say('  No deal tiles found');
+            return 0;
         }
 
-        // Fallback: parse deal cards from HTML
-        $dealItems = $xpath->query('//*[contains(@class,"dne-itemtile") or contains(@class,"dealItem") or contains(@class,"itemCell")]');
-        foreach ($dealItems as $el) {
-            $title    = $xpath->evaluate('string(.//*[contains(@class,"itemtile-title") or contains(@class,"title") or contains(@class,"name")])', $el);
-            $saleText = $xpath->evaluate('string(.//*[contains(@class,"bold") or contains(@class,"price") or contains(@class,"current")])', $el);
-            $origText = $xpath->evaluate('string(.//*[contains(@class,"original") or contains(@class,"was") or contains(@class,"strike")])', $el);
-            $imgSrc   = $xpath->evaluate('string(.//img/@src)', $el);
-            $link     = $xpath->evaluate('string(.//a/@href)', $el);
-
-            $title = trim($title);
+        foreach ($tiles as $tile) {
+            // Title: dne-itemtile-title class
+            $title = trim($xpath->evaluate(
+                'string(.//*[contains(@class,"dne-itemtile-title")])', $tile
+            ));
             if (!$title) continue;
+
+            // Sale price: dne-itemtile-price class
+            $saleText = $xpath->evaluate(
+                'string(.//*[contains(@class,"dne-itemtile-price") and not(contains(@class,"original"))])', $tile
+            );
+            // Original price: dne-itemtile-original-price class
+            $origText = $xpath->evaluate(
+                'string(.//*[contains(@class,"dne-itemtile-original-price")])', $tile
+            );
 
             $sale = $this->parsePrice($saleText);
             $orig = $this->parsePrice($origText);
             if ($sale <= 0) continue;
-            if ($orig <= $sale) $orig = $sale * 2;
 
-            $pct = $this->calcDiscount($orig, $sale);
-            if ($pct < 50) continue;
+            // eBay includes "XX% off" in the original price text — extract it
+            $pct = 0;
+            if (preg_match('/(\d+)\s*%\s*off/i', $origText, $pctMatch)) {
+                $pct = (int)$pctMatch[1];
+            }
+            if ($pct === 0 && $orig > $sale) {
+                $pct = $this->calcDiscount($orig, $sale);
+            }
+            // Reconstruct original if we have pct but not orig
+            if ($orig <= $sale && $pct > 0 && $sale > 0) {
+                $orig = round($sale / (1 - $pct / 100), 2);
+            }
+            if ($pct < 50 || $orig <= $sale) continue;
 
+            // Image: real product image from img tag
+            $imgSrc = $xpath->evaluate('string(.//img/@src)', $tile);
+            if (!$imgSrc || str_contains($imgSrc, '1x1') || str_contains($imgSrc, 'pixel')) {
+                $imgSrc = $xpath->evaluate('string(.//img/@data-src)', $tile);
+            }
+
+            // Link
+            $link = $xpath->evaluate('string(.//a/@href)', $tile);
             if ($link && !str_starts_with($link, 'http')) {
                 $link = 'https://www.ebay.com' . $link;
             }
+            if (!$link) continue;
 
-            $this->saveEbayDeal([
+            if ($this->saveEbayDeal([
                 'title'          => $title,
                 'original_price' => $orig,
                 'sale_price'     => $sale,
                 'discount_pct'   => $pct,
                 'image_url'      => $imgSrc ?: null,
-                'product_url'    => $link ?: $pageUrl,
-                'affiliate_url'  => $link ?: $pageUrl,
+                'product_url'    => $link,
+                'affiliate_url'  => $link,
                 'category'       => $this->mapCategory($title),
-            ]);
+            ])) $saved++;
         }
-    }
-
-    private function parseEbayStateData(array $data): void {
-        // Recursively search for deal items in eBay's state object
-        $this->findDealsInArray($data, 0);
-    }
-
-    private function findDealsInArray(array $data, int $depth): void {
-        if ($depth > 8) return;
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                // Check if this looks like a deal item
-                if (isset($value['title']) && (isset($value['discountedPrice']) || isset($value['dealPrice']))) {
-                    $sale = (float)($value['discountedPrice']['value'] ?? $value['dealPrice']['value'] ?? 0);
-                    $orig = (float)($value['originalPrice']['value'] ?? $value['msrpPrice']['value'] ?? 0);
-                    $pct  = isset($value['discountPercentage']) ? (int)$value['discountPercentage'] : $this->calcDiscount($orig, $sale);
-                    if ($pct >= 50 && $sale > 0) {
-                        $img  = $value['image']['imageUrl'] ?? $value['image'][0] ?? null;
-                        $url  = $value['itemUrl'] ?? $value['dealUrl'] ?? '';
-                        $this->saveEbayDeal([
-                            'title'          => (string)$value['title'],
-                            'original_price' => $orig > 0 ? $orig : round($sale / (1 - $pct/100), 2),
-                            'sale_price'     => $sale,
-                            'discount_pct'   => $pct,
-                            'image_url'      => $img,
-                            'product_url'    => $url,
-                            'affiliate_url'  => $url,
-                            'category'       => $this->mapCategory((string)$value['title']),
-                        ]);
-                    }
-                }
-                $this->findDealsInArray($value, $depth + 1);
-            }
-        }
+        return $saved;
     }
 
     // ── eBay Finding API ──────────────────────────────────────────────────────
@@ -236,7 +222,7 @@ class EbayScraper extends BaseScraper {
                     : 0);
 
                 if ($sale <= 0) continue;
-                if ($orig <= $sale) $orig = $sale * 2.2;
+                if ($orig <= $sale) continue;
 
                 $pct   = $this->calcDiscount($orig, $sale);
                 if ($pct < 50) continue;
@@ -282,8 +268,7 @@ class EbayScraper extends BaseScraper {
                 $prices = array_values(array_filter($prices, fn($p) => $p >= 1 && $p <= 50000));
                 sort($prices);
                 if (count($prices) >= 2) { $sale = $prices[0]; $orig = end($prices); }
-                elseif (count($prices) === 1) { $sale = $prices[0]; $orig = $sale * 2.5; }
-                else continue;
+                else continue; // skip items with only 1 price (can't verify discount)
 
                 $pct = $this->calcDiscount($orig, $sale);
                 if ($pct < 50) continue;
