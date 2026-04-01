@@ -42,13 +42,12 @@ class EbayScraper extends BaseScraper {
             $d['image_url'] = preg_replace('/s-l\d+\./', 's-l500.', $d['image_url']);
         }
 
-        // Skip tracking pixel images
-        if (!empty($d['image_url']) && (
-            str_contains($d['image_url'], 's_1x2.gif') ||
-            str_contains($d['image_url'], '1x1') ||
-            str_contains($d['image_url'], 'pixel')
-        )) {
-            $d['image_url'] = null;
+        // Skip deals without real product images
+        $img = $d['image_url'] ?? '';
+        if (!$img || str_contains($img, 's_1x2') || str_contains($img, '1x1') ||
+            str_contains($img, 'pixel') || str_contains($img, 'spacer') ||
+            !str_contains($img, 'ebayimg.com')) {
+            return false;
         }
 
         return $this->saveDeal($d);
