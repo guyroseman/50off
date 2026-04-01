@@ -28,9 +28,9 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= isset($pageTitle) ? h($pageTitle) . ' — ' : '' ?>50OFF — Don't search for products, search for discounts</title>
-    <meta name="description" content="Only 50%+ off deals from Amazon, Walmart & Target. Verified discounts updated every 2 hours.">
+    <meta name="description" content="Only 50%+ off deals from Amazon, Target &amp; eBay. Verified discounts updated every 3 hours.">
     <meta property="og:title" content="50OFF — Only 50%+ Off Deals">
-    <meta property="og:description" content="Find only the best deals: 50% off or more from top US retailers.">
+    <meta property="og:description" content="50% off or more from Amazon, Target &amp; eBay. Updated every 3 hours.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">

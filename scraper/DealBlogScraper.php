@@ -3,12 +3,10 @@
  * DealBlogScraper.php — Curated deal blogs with public RSS feeds
  *
  * Sources:
- *  - BensBargains.com  — Editor-curated deals, updated 24/7, Amazon/Walmart/etc.
+ *  - BensBargains.com  — Editor-curated deals, updated 24/7
+ *                        Links go DIRECTLY to retailers (Amazon, Walmart, etc.)
  *                        Title: "Product Name $X at Store"
  *                        Image: cdn.bensimages.com CDN (always accessible)
- *  - Hip2Save.com      — Popular savings blog, millions of readers
- *                        Title: "Product from $X (Reg. $Y)"
- *                        Image: <thumbnail-image> custom element
  *
  * All RSS feeds are public, no API key needed, no bot protection.
  * Updated continuously — new deals appear every 30-60 minutes.
@@ -20,15 +18,13 @@ class DealBlogScraper extends BaseScraper
     protected string $store = 'other';
 
     private array $feeds = [
-        // BensBargains — direct links to Amazon/Walmart/etc, updated 24/7
+        // BensBargains — links go DIRECTLY to Amazon/Walmart/Target/etc (not blog pages)
         ['url' => 'https://feeds2.feedburner.com/BensBargains',  'source' => 'bensbargains', 'type' => 'bens'],
-        // Hip2Save — millions of readers, title includes "(Reg. $X)", updated constantly
-        ['url' => 'https://hip2save.com/feed/',                   'source' => 'hip2save',     'type' => 'h2s'],
     ];
 
     public function scrape(): void
     {
-        $this->say('=== DealBlog Scraper — BensBargains + Hip2Save ===');
+        $this->say('=== DealBlog Scraper — BensBargains (direct retailer links) ===');
         $totalSaved = 0;
 
         foreach ($this->feeds as $feed) {
@@ -56,7 +52,7 @@ class DealBlogScraper extends BaseScraper
         }
 
         $this->say("══ Done: {$totalSaved} deals ══");
-        $this->logResult($totalSaved > 0 ? 'success' : 'warning', "DealBlog (BB+H2S) saved: {$totalSaved}");
+        $this->logResult($totalSaved > 0 ? 'success' : 'warning', "BensBargains saved: {$totalSaved}");
     }
 
     // ── BensBargains ─────────────────────────────────────────────────────────
@@ -128,89 +124,6 @@ class DealBlogScraper extends BaseScraper
 
         // Clean title: remove price/store suffix
         $cleanTitle = preg_replace('/\s+\$[\d,]+\.?\d*\s+at\s+\w+[\w\s]*$/i', '', $title);
-        $cleanTitle = trim(strip_tags($cleanTitle));
-
-        return $this->saveDeal([
-            'title'          => $cleanTitle ?: $title,
-            'description'    => $this->cleanText($desc),
-            'original_price' => $orig,
-            'sale_price'     => $sale,
-            'discount_pct'   => $pct,
-            'image_url'      => $image,
-            'product_url'    => $link,
-            'affiliate_url'  => $link,
-            'category'       => $this->mapCategory($title . ' ' . $desc),
-        ]);
-    }
-
-    // ── Hip2Save ─────────────────────────────────────────────────────────────
-    // Title format: "Product from $X (Reg. $Y)" or "Product Just $X Shipped"
-    // Image: <thumbnail-image> custom element
-    private function process_h2s(\SimpleXMLElement $item, string $source): bool
-    {
-        $title = trim((string)($item->title ?? ''));
-        $link  = trim((string)($item->link  ?? ''));
-        $desc  = (string)($item->description ?? '');
-        if (!$title || !$link) return false;
-
-        // Skip gift card, freebie, and coupon posts — not real product deals
-        $lc = strtolower($title);
-        if (str_contains($lc, 'gift card') || str_contains($lc, 'free shipping only')
-            || str_contains($lc, 'coupon') || str_contains($lc, 'printable')) return false;
-
-        $fullText = $title . ' ' . strip_tags($desc);
-
-        // "(Reg. $Y)" pattern — most reliable for Hip2Save
-        $orig = 0.0;
-        if (preg_match('/\((?:Reg|Orig|Was|Retail)\.?\s*\$\s*([\d,]+\.?\d{0,2})\)/i', $fullText, $m))
-            $orig = (float)str_replace(',', '', $m[1]);
-        if ($orig <= 0 && preg_match('/(?:reg(?:ular)?|orig(?:inally)?|was|retail)[:\s]+\$\s*([\d,]+\.?\d{0,2})/i', $fullText, $m))
-            $orig = (float)str_replace(',', '', $m[1]);
-
-        // Sale price: "from $X", "just $X", "for $X", "as low as $X"
-        $sale = 0.0;
-        if (preg_match('/(?:from|just|for|only|as low as)\s+\$\s*([\d,]+\.?\d{0,2})/i', $title, $m))
-            $sale = (float)str_replace(',', '', $m[1]);
-        if ($sale <= 0 && preg_match('/\$\s*([\d,]+\.?\d{0,2})\s+(?:shipped|each|per)/i', $fullText, $m))
-            $sale = (float)str_replace(',', '', $m[1]);
-
-        // Percent off
-        $pct = 0;
-        if (preg_match('/(\d+)\s*%\s*off/i', $fullText, $m)) $pct = (int)$m[1];
-
-        // Fallback: collect all prices
-        if ($sale <= 0 || $orig <= 0) {
-            preg_match_all('/\$\s*([\d,]+\.?\d{0,2})/', $fullText, $all);
-            $prices = array_map(fn($p) => (float)str_replace(',', '', $p), $all[1] ?? []);
-            $prices = array_values(array_filter($prices, fn($p) => $p >= 1 && $p <= 50000));
-            sort($prices);
-            if (count($prices) >= 2) {
-                if ($sale <= 0) $sale = $prices[0];
-                if ($orig <= 0) $orig = end($prices);
-            } elseif (count($prices) === 1 && $pct >= 50) {
-                if ($sale <= 0) $sale = $prices[0];
-                if ($orig <= 0) $orig = round($sale / (1 - $pct / 100), 2);
-            }
-        }
-
-        if ($orig <= 0 && $pct >= 50 && $sale > 0) $orig = round($sale / (1 - $pct / 100), 2);
-        if ($pct < 50 && $sale > 0 && $orig > $sale) $pct = $this->calcDiscount($orig, $sale);
-        if ($pct < 50 || $sale <= 0 || $orig <= $sale) return false;
-
-        // Hip2Save has <thumbnail-image> custom tag
-        $nsItems = $item->children('', false);
-        $image   = null;
-        if (isset($nsItems->{'thumbnail-image'})) {
-            $image = trim((string)$nsItems->{'thumbnail-image'});
-        }
-        if (!$image) $image = $this->extractImage($desc);
-
-        $store = $this->detectStore($link . ' ' . $title . ' ' . $desc);
-        $this->store = $store;
-
-        // Clean title: remove "(Reg. $X)" and trailing store
-        $cleanTitle = preg_replace('/\s*\((?:Reg|Orig|Was|Retail)\.?\s*\$[\d,.]+\)/i', '', $title);
-        $cleanTitle = preg_replace('/\s+(?:at|on)\s+\w[\w\s]+$/i', '', $cleanTitle);
         $cleanTitle = trim(strip_tags($cleanTitle));
 
         return $this->saveDeal([

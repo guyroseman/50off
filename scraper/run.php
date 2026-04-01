@@ -13,7 +13,7 @@
  *  │ Costco     (costco.com)    — online deals & clearance               │
  *  │ Home Depot (homedepot.com) — Special Buy JSON API + HTML fallback   │
  *  │ 6pm        (6pm.com)       — sale pages, __NEXT_DATA__ JSON         │
- *  │ DealBlogs  (bens+hip2save)  — BensBargains + Hip2Save live RSS       │
+ *  │ DealBlogs  (bensbargains)   — Direct retailer links via RSS           │
  *  │ DealNews   (dealnews.com)  — 9 editor-curated RSS feeds             │
  *  │ eBay       (ebay.com)      — deals page + RSS feeds                 │
  *  └─────────────────────────────────────────────────────────────────────┘
@@ -88,10 +88,10 @@ $run = match($requested) {
     'woot'        => ['woot'],
     'dealnews'    => ['dealnews'],
     'dealblogs'   => ['dealblogs'],
-    'working'     => ['amazon', 'target', 'dealblogs', 'ebay'],
+    'working'     => ['amazon', 'target', 'ebay'],
     'aggregators' => ['dealblogs', 'woot', 'dealnews', 'ebay'],
     'retail'      => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm'],
-    default       => ['amazon', 'target', 'dealblogs', 'ebay'],
+    default       => ['amazon', 'target', 'ebay'],
 };
 
 // ── DB setup (DB mode only) ───────────────────────────────────────────────────
