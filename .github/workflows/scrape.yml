@@ -1,4 +1,4 @@
-name: Scrape Target Deals
+name: Scrape Deals (Amazon + Target)
 on:
   schedule:
     - cron: '30 */3 * * *'   # Every 3 hours at :30 (offset from Hostinger cron at :00)
@@ -7,7 +7,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repo
@@ -19,27 +19,46 @@ jobs:
           php-version: '8.2'
           extensions: curl, json, mbstring
 
+      - name: Scrape Amazon and push to site
+        run: |
+          echo "=== Scraping Amazon ==="
+          JSON=$(SCRAPER_OUTPUT=json php scraper/run.php amazon)
+          EXIT=$?
+
+          COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
+          echo "Amazon deals scraped: $COUNT (exit: $EXIT)"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "Submitting Amazon deals to 50offsale.com..."
+            RESULT=$(curl -sL --max-time 30 \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
+              -d "$JSON" \
+              "https://50offsale.com/api/ingest.php" 2>/dev/null || echo '{"error":"request failed"}')
+            echo "Result: $RESULT"
+          else
+            echo "No Amazon deals found — skipping submission"
+          fi
+
       - name: Scrape Target and push to site
         run: |
           echo "=== Scraping Target (RedSky API) ==="
-
-          # stdout = clean JSON array, stderr = progress logs
           JSON=$(SCRAPER_OUTPUT=json php scraper/run.php target)
           EXIT=$?
 
           COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
-          echo "Deals scraped: $COUNT (exit: $EXIT)"
+          echo "Target deals scraped: $COUNT (exit: $EXIT)"
 
           if [ "$COUNT" -gt 0 ]; then
-            echo "Submitting to 50offsale.com..."
-            PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'deals': json.loads(sys.stdin.read())}))" <<< "$JSON")
+            echo "Submitting Target deals to 50offsale.com..."
             RESULT=$(curl -sL --max-time 30 \
               -X POST \
               -H "Content-Type: application/json" \
-              -H "Authorization: Bearer ${{ secrets.SUBMIT_DEALS_SECRET }}" \
-              -d "$PAYLOAD" \
-              "https://50offsale.com/api/submit-deals.php" 2>/dev/null || echo '{"error":"request failed"}')
+              -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
+              -d "$JSON" \
+              "https://50offsale.com/api/ingest.php" 2>/dev/null || echo '{"error":"request failed"}')
             echo "Result: $RESULT"
           else
-            echo "No deals found — skipping submission"
+            echo "No Target deals found — skipping submission"
           fi
