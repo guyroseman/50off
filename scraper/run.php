@@ -6,13 +6,16 @@
  *
  *  SOURCES:
  *  ┌─────────────────────────────────────────────────────────────────────┐
- *  │ Amazon    (amazon.com) — deals page + 12 category search seeds      │
- *  │ Target    (target.com) — RedSky API, 6 categories                   │
- *  │ Walmart   (walmart.com)— ⚠ blocked by Akamai, stub only             │
- *  │ Best Buy  (bestbuy.com)— clearance/sale pages, embedded JSON        │
- *  │ Costco    (costco.com) — online deals & clearance                   │
- *  │ Home Depot(homedepot)  — Special Buy JSON API + HTML fallback       │
- *  │ 6pm       (6pm.com)    — sale pages, window.__INITIAL_STATE__ JSON  │
+ *  │ Amazon     (amazon.com)    — deals widget + category seeds          │
+ *  │ Target     (target.com)    — RedSky API, 6 categories               │
+ *  │ Walmart    (walmart.com)   — ⚠ blocked by Akamai, stub only         │
+ *  │ Best Buy   (bestbuy.com)   — clearance/sale pages, embedded JSON    │
+ *  │ Costco     (costco.com)    — online deals & clearance               │
+ *  │ Home Depot (homedepot.com) — Special Buy JSON API + HTML fallback   │
+ *  │ 6pm        (6pm.com)       — sale pages, __NEXT_DATA__ JSON         │
+ *  │ DealBlogs  (bens+hip2save)  — BensBargains + Hip2Save live RSS       │
+ *  │ DealNews   (dealnews.com)  — 9 editor-curated RSS feeds             │
+ *  │ eBay       (ebay.com)      — deals page + RSS feeds                 │
  *  └─────────────────────────────────────────────────────────────────────┘
  *
  *  USAGE:
@@ -24,6 +27,11 @@
  *    php scraper/run.php costco       # Costco only
  *    php scraper/run.php homedepot    # Home Depot only
  *    php scraper/run.php 6pm          # 6pm only
+ *    php scraper/run.php slickdeals   # SlickDeals RSS only
+ *    php scraper/run.php woot         # Woot.com only
+ *    php scraper/run.php dealnews     # DealNews RSS only
+ *    php scraper/run.php ebay         # eBay only
+ *    php scraper/run.php aggregators  # SlickDeals + Woot + DealNews + eBay
  *    php scraper/run.php retail       # Amazon + Target + BestBuy + Costco + HD + 6pm
  *    php scraper/run.php seed         # seed data only (no network)
  *
@@ -48,6 +56,11 @@ require_once __DIR__ . '/BestBuyScraper.php';
 require_once __DIR__ . '/CostcoScraper.php';
 require_once __DIR__ . '/HomeDepotScraper.php';
 require_once __DIR__ . '/SixPmScraper.php';
+require_once __DIR__ . '/SlickDealsScraper.php';
+require_once __DIR__ . '/EbayScraper.php';
+require_once __DIR__ . '/WootScraper.php';
+require_once __DIR__ . '/DealNewsScraper.php';
+require_once __DIR__ . '/DealBlogScraper.php';
 
 if ($jsonMode) {
     BaseScraper::enableJsonMode();
@@ -62,16 +75,23 @@ if (!$jsonMode) {
 // ── Which scrapers to run ────────────────────────────────────────────────────
 $requested = $argv[1] ?? 'all';
 $run = match($requested) {
-    'seed'       => ['seed'],
-    'amazon'     => ['amazon'],
-    'walmart'    => ['walmart'],
-    'target'     => ['target'],
-    'bestbuy'    => ['bestbuy'],
-    'costco'     => ['costco'],
-    'homedepot'  => ['homedepot'],
-    '6pm'        => ['6pm'],
-    'retail'     => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm'],
-    default      => ['amazon', 'target', 'walmart', 'bestbuy', 'costco', 'homedepot', '6pm'],
+    'seed'        => ['seed'],
+    'amazon'      => ['amazon'],
+    'walmart'     => ['walmart'],
+    'target'      => ['target'],
+    'bestbuy'     => ['bestbuy'],
+    'costco'      => ['costco'],
+    'homedepot'   => ['homedepot'],
+    '6pm'         => ['6pm'],
+    'slickdeals'  => ['slickdeals'],
+    'ebay'        => ['ebay'],
+    'woot'        => ['woot'],
+    'dealnews'    => ['dealnews'],
+    'dealblogs'   => ['dealblogs'],
+    'working'     => ['amazon', 'target', 'dealblogs', 'ebay'],
+    'aggregators' => ['dealblogs', 'woot', 'dealnews', 'ebay'],
+    'retail'      => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm'],
+    default       => ['amazon', 'target', 'dealblogs', 'ebay'],
 };
 
 // ── DB setup (DB mode only) ───────────────────────────────────────────────────
@@ -89,14 +109,19 @@ if (!$jsonMode) {
 
 // ── Scraper map ───────────────────────────────────────────────────────────────
 $scrapers = [
-    'seed'      => fn() => new SeedScraper(),
-    'amazon'    => fn() => new AmazonScraper(),
-    'walmart'   => fn() => new WalmartScraper(),
-    'target'    => fn() => new TargetScraper(),
-    'bestbuy'   => fn() => new BestBuyScraper(),
-    'costco'    => fn() => new CostcoScraper(),
-    'homedepot' => fn() => new HomeDepotScraper(),
-    '6pm'       => fn() => new SixPmScraper(),
+    'seed'       => fn() => new SeedScraper(),
+    'amazon'     => fn() => new AmazonScraper(),
+    'walmart'    => fn() => new WalmartScraper(),
+    'target'     => fn() => new TargetScraper(),
+    'bestbuy'    => fn() => new BestBuyScraper(),
+    'costco'     => fn() => new CostcoScraper(),
+    'homedepot'  => fn() => new HomeDepotScraper(),
+    '6pm'        => fn() => new SixPmScraper(),
+    'slickdeals' => fn() => new SlickDealsScraper(),
+    'ebay'       => fn() => new EbayScraper(),
+    'woot'       => fn() => new WootScraper(),
+    'dealnews'   => fn() => new DealNewsScraper(),
+    'dealblogs'  => fn() => new DealBlogScraper(),
 ];
 
 if (!$jsonMode) {

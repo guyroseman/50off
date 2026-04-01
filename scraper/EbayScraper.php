@@ -18,6 +18,7 @@ require_once __DIR__ . '/BaseScraper.php';
 class EbayScraper extends BaseScraper {
     protected string $store = 'ebay';
     private string $appId;
+    private array  $seenUrls = [];  // dedup within a single run
 
     // eBay's public deals page (no API key needed)
     private string $dealsUrl = 'https://www.ebay.com/deals';
@@ -28,6 +29,14 @@ class EbayScraper extends BaseScraper {
     public function __construct(string $appId = '') {
         parent::__construct();
         $this->appId = $appId;
+    }
+
+    // Dedup wrapper — eBay's recursive state traversal can yield same URL twice
+    private function saveEbayDeal(array $d): bool {
+        $url = $d['product_url'] ?? '';
+        if (!$url || isset($this->seenUrls[$url])) return false;
+        $this->seenUrls[$url] = true;
+        return $this->saveDeal($d);
     }
 
     public function scrape(): void {
@@ -100,7 +109,7 @@ class EbayScraper extends BaseScraper {
                     $pct  = $this->calcDiscount($orig, $sale);
                     if ($pct < 50) continue;
 
-                    $this->saveDeal([
+                    $this->saveEbayDeal([
                         'title'          => $m[1],
                         'original_price' => $orig,
                         'sale_price'     => $sale,
@@ -137,7 +146,7 @@ class EbayScraper extends BaseScraper {
                 $link = 'https://www.ebay.com' . $link;
             }
 
-            $this->saveDeal([
+            $this->saveEbayDeal([
                 'title'          => $title,
                 'original_price' => $orig,
                 'sale_price'     => $sale,
@@ -167,7 +176,7 @@ class EbayScraper extends BaseScraper {
                     if ($pct >= 50 && $sale > 0) {
                         $img  = $value['image']['imageUrl'] ?? $value['image'][0] ?? null;
                         $url  = $value['itemUrl'] ?? $value['dealUrl'] ?? '';
-                        $this->saveDeal([
+                        $this->saveEbayDeal([
                             'title'          => (string)$value['title'],
                             'original_price' => $orig > 0 ? $orig : round($sale / (1 - $pct/100), 2),
                             'sale_price'     => $sale,
@@ -234,7 +243,7 @@ class EbayScraper extends BaseScraper {
 
                 $image = $item['pictureURLSuperSize'][0] ?? $item['galleryURL'][0] ?? null;
 
-                $this->saveDeal([
+                $this->saveEbayDeal([
                     'title'          => $title,
                     'original_price' => $orig,
                     'sale_price'     => $sale,
@@ -282,7 +291,7 @@ class EbayScraper extends BaseScraper {
                 $image = null;
                 if (preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', $desc, $m)) $image = $m[1];
 
-                $this->saveDeal([
+                $this->saveEbayDeal([
                     'title'          => strip_tags($title),
                     'original_price' => $orig,
                     'sale_price'     => $sale,

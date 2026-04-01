@@ -94,6 +94,13 @@ abstract class BaseScraper {
         return false;
     }
 
+    protected function fetchJson(string $url, array $extraHeaders = []): array|false {
+        $body = $this->fetch($url, array_merge(['Accept: application/json, */*;q=0.8'], $extraHeaders));
+        if (!$body) return false;
+        $data = @json_decode($body, true);
+        return ($data !== null && json_last_error() === JSON_ERROR_NONE) ? $data : false;
+    }
+
     protected function fetchRss(string $url): ?\SimpleXMLElement {
         $body = $this->fetch($url, ['Accept: application/rss+xml, application/xml, text/xml']);
         if (!$body) return null;
