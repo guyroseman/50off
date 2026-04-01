@@ -161,7 +161,8 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
                     <span class="pill-count"><?= $s['cnt'] ?></span>
                 </a>
                 <?php endforeach; ?>
-                <a href="/blog/" class="store-pill <?= $isBlog ? 'active' : '' ?>">📝 Blog</a>
+                <span class="store-nav-divider" aria-hidden="true"></span>
+                <a href="/blog/" class="store-pill store-pill--blog <?= $isBlog ? 'active' : '' ?>">✍️ Blog</a>
             </nav>
 
             <!-- Saved deals button (desktop) -->

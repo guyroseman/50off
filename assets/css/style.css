@@ -800,9 +800,16 @@ button { font-family: inherit; cursor: pointer; }
 .site-footer { background: var(--ink); border-top: 1px solid var(--border); margin-top: 3rem; }
 .footer-inner {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
+    grid-template-columns: 1.6fr 2.4fr 0.8fr;
     gap: 2.5rem;
     padding: 3rem 1.5rem 2rem;
+    align-items: start;
+}
+/* Middle column: 3 link columns side-by-side on desktop */
+.footer-links-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.5rem;
 }
 .footer-brand .logo-name { color: #fff; font-size: 1.2rem; }
 .footer-brand p { font-size: .83rem; color: #9CA3AF; margin-top: .5rem; line-height: 1.6; }
@@ -839,15 +846,54 @@ button { font-family: inherit; cursor: pointer; }
 ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--orange); }
 
+/* ─── BLOG NAV PILL — distinct from store pills ──────────────────────────────── */
+.store-nav-divider {
+    width: 1px; height: 20px; background: var(--border); flex-shrink: 0;
+    align-self: center; margin: 0 .1rem;
+}
+.store-pill--blog {
+    color: var(--orange) !important;
+    border-color: var(--orange-light) !important;
+    background: var(--orange-light) !important;
+    font-weight: 600 !important;
+}
+.store-pill--blog:hover {
+    background: var(--orange) !important;
+    border-color: var(--orange) !important;
+    color: #fff !important;
+}
+.store-pill--blog.active {
+    background: var(--orange) !important;
+    border-color: var(--orange) !important;
+    color: #fff !important;
+}
+
 /* ─── RESPONSIVE ────────────────────────────────────────────────────────────── */
 @media (max-width: 1024px) {
     .store-nav { display: none; }
     .mobile-menu-btn { display: flex; }
+    .header-saved-btn { display: none; } /* bottom nav covers this on mobile */
     .footer-inner { grid-template-columns: 1fr 1fr; }
     .deal-detail-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
-    .hero-banner { padding: 2.5rem 1rem 1.5rem; }
+    /* Bottom nav covers all navigation — hamburger is redundant */
+    .mobile-menu-btn { display: none !important; }
+
+    /* Mobile header: logo left, search takes remaining width */
+    .header-inner {
+        height: 56px;
+        gap: .75rem;
+        flex-wrap: nowrap;
+    }
+    .logo-tag { display: none; } /* save space */
+    .logo-name { font-size: .95rem; }
+    .logo-icon { width: 30px; height: 30px; font-size: .75rem; }
+    .search-form { flex: 1; max-width: none; }
+    .search-btn { padding: .45rem .75rem; font-size: .8rem; }
+    .search-input { font-size: .85rem; padding: .55rem .6rem; }
+
+    .hero-banner { padding: 2rem 1rem 1rem; }
     .deals-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .85rem; }
     .footer-inner { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
     .hot-deals-scroll .deal-card { width: 220px; }
@@ -1173,3 +1219,43 @@ button { font-family: inherit; cursor: pointer; }
     font-size: .95rem;
 }
 .saved-empty .big-icon { font-size: 3rem; margin-bottom: .75rem; display: block; }
+
+/* === MOBILE FOOTER === */
+@media (max-width: 768px) {
+    .site-footer { margin-top: 1.5rem; }
+    .footer-inner {
+        grid-template-columns: 1fr;
+        gap: 0;
+        padding: 0;
+    }
+    .footer-brand {
+        padding: 1.25rem 1rem 1rem;
+        border-bottom: 1px solid #2D2D2D;
+    }
+    .footer-brand .logo { margin-bottom: .5rem !important; }
+    .footer-brand > p:not(.disclaimer) { display: none; }
+    .footer-brand .disclaimer { font-size: .66rem !important; margin-top: .4rem !important; }
+    .footer-links-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        border-bottom: 1px solid #2D2D2D;
+    }
+    .footer-links-row .footer-links {
+        padding: .9rem .65rem;
+        border-right: 1px solid #2D2D2D;
+    }
+    .footer-links-row .footer-links:last-child { border-right: none; }
+    .footer-links-info {
+        padding: .8rem 1rem;
+        border-bottom: 1px solid #2D2D2D;
+    }
+    .footer-links-info ul {
+        display: flex; flex-wrap: wrap; gap: .2rem .6rem; list-style: none;
+    }
+    .footer-links-info li { margin: 0; }
+    .footer-links-info a, .footer-links-info li a { font-size: .76rem; color: #9CA3AF; }
+    .footer-links h4 { font-size: .64rem; margin-bottom: .4rem; }
+    .footer-links li { margin-bottom: .26rem; }
+    .footer-links a { font-size: .74rem; }
+    .footer-bottom { font-size: .7rem; padding: .8rem 1rem; }
+}
