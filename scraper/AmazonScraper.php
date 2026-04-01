@@ -626,7 +626,7 @@ class AmazonScraper extends BaseScraper
         ]);
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        unset($ch);
         if ($code >= 400) { $this->say("  API HTTP $code"); return false; }
         return $body ?: false;
     }
@@ -664,7 +664,7 @@ class AmazonScraper extends BaseScraper
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $err  = curl_error($ch);
-        curl_close($ch);
+        unset($ch);
         if ($err)         { $this->say("cURL error: $err"); return false; }
         if ($code >= 400) { $this->say("HTTP $code"); return false; }
         return $body ?: false;

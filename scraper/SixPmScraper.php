@@ -85,14 +85,20 @@ class SixPmScraper extends BaseScraper
         $this->logResult($savedTotal > 0 ? 'success' : 'warning', "6pm.com 50%+ (saved: {$savedTotal})");
     }
 
-    // ── Primary: window.__INITIAL_STATE__ ─────────────────────────────────────
+    // ── Primary: window.__INITIAL_STATE__ or window.__APP_STATE__ ───────────
     private function parseInitialState(string $html): int
     {
-        if (!preg_match('/window\.__INITIAL_STATE__\s*=\s*(\{.+?\});\s*(?:window\.|<\/script>)/s', $html, $m)) {
-            return 0;
+        $state = null;
+        foreach ([
+            '/window\.__INITIAL_STATE__\s*=\s*(\{.+?\});\s*(?:window\.|<\/script>)/s',
+            '/window\.__APP_STATE__\s*=\s*(\{.+?\});\s*(?:window\.|<\/script>)/s',
+        ] as $pattern) {
+            if (preg_match($pattern, $html, $m)) {
+                $decoded = json_decode($m[1], true);
+                if ($decoded && json_last_error() === JSON_ERROR_NONE) { $state = $decoded; break; }
+            }
         }
-        $state = json_decode($m[1], true);
-        if (!$state || json_last_error() !== JSON_ERROR_NONE) return 0;
+        if (!$state) return 0;
 
         // 6pm state structure: state.products.list[] or state.search.results[]
         $products = $state['products']['list']
@@ -100,12 +106,9 @@ class SixPmScraper extends BaseScraper
                  ?? $state['products']['searchResult']['list']
                  ?? [];
 
-        // Also check paginated results
         if (empty($products) && isset($state['products'])) {
             foreach ($state['products'] as $val) {
-                if (is_array($val) && isset($val[0]['productId'])) {
-                    $products = $val; break;
-                }
+                if (is_array($val) && isset($val[0]['productId'])) { $products = $val; break; }
             }
         }
 
@@ -119,6 +122,8 @@ class SixPmScraper extends BaseScraper
     }
 
     // ── Fallback: __NEXT_DATA__ ───────────────────────────────────────────────
+    // NOTE: 6pm __NEXT_DATA__ path confirmed: props.pageProps.initialData.products[]
+    // Prices are in CENTS (integer) — must divide by 100
     private function parseNextData(string $html): int
     {
         if (!preg_match('/<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.+?)<\/script>/s', $html, $m)) {
@@ -127,63 +132,82 @@ class SixPmScraper extends BaseScraper
         $data = json_decode($m[1], true);
         if (!$data || json_last_error() !== JSON_ERROR_NONE) return 0;
 
-        $products = $data['props']['pageProps']['products']
+        // Confirmed path: props.pageProps.initialData.products[]
+        $products = $data['props']['pageProps']['initialData']['products']
+                 ?? $data['props']['pageProps']['products']
                  ?? $data['props']['pageProps']['searchResult']['list']
                  ?? $data['props']['pageProps']['initialState']['products']['list']
                  ?? [];
 
         if (empty($products)) return 0;
         $this->say("  Found " . count($products) . " products in __NEXT_DATA__");
-        return $this->processProducts($products);
+
+        // Flag that prices need cents→dollars conversion
+        return $this->processProducts($products, true);
     }
 
     // ── Process product list (either source) ──────────────────────────────────
-    private function processProducts(array $products): int
+    // $centsMode: true when prices are integers in cents (from __NEXT_DATA__)
+    private function processProducts(array $products, bool $centsMode = false): int
     {
         $saved = 0;
         foreach ($products as $prod) {
             if (!is_array($prod)) continue;
 
             // Title: brand + name
-            $brand = $prod['brandName'] ?? $prod['brand'] ?? '';
+            // __NEXT_DATA__ confirmed fields: productName, brand (object with name)
+            $brand = $prod['brandName']
+                  ?? (is_array($prod['brand'] ?? null) ? ($prod['brand']['name'] ?? '') : ($prod['brand'] ?? ''))
+                  ?? '';
             $name  = $prod['productName'] ?? $prod['name'] ?? $prod['styleName'] ?? '';
             $title = trim($brand ? "{$brand} {$name}" : $name);
             if (!$title) continue;
 
-            // Pricing
-            $sale       = (float)($prod['price']           ?? $prod['salePrice']       ?? $prod['minPrice']  ?? 0);
-            $original   = (float)($prod['originalPrice']   ?? $prod['retailPrice']     ?? $prod['maxPrice']  ?? 0);
-            $pct        = (int)  ($prod['percentOff']      ?? $prod['discountPercent'] ?? 0);
+            // Pricing — confirmed __NEXT_DATA__ fields: msrp (cents), price (cents), percentOff
+            $saleRaw     = $prod['price']           ?? $prod['salePrice']       ?? $prod['minPrice']  ?? 0;
+            $originalRaw = $prod['msrp']            ?? $prod['originalPrice']   ?? $prod['retailPrice']?? $prod['maxPrice']  ?? 0;
+            $pct         = (int)($prod['percentOff'] ?? $prod['discountPercent'] ?? 0);
+
+            // Convert cents → dollars if needed
+            $divisor  = $centsMode ? 100.0 : 1.0;
+            $sale     = (float)$saleRaw     / $divisor;
+            $original = (float)$originalRaw / $divisor;
 
             if ($sale <= 0) continue;
             if ($original <= 0 && $pct > 0) $original = round($sale / (1 - $pct / 100), 2);
             if ($original > 0 && $sale < $original) $pct = max($pct, $this->calcDiscount($original, $sale));
             if ($pct < 50 || $original <= 0 || $original <= $sale) continue;
 
-            // Image — 6pm uses Scene7 CDN
-            $imageUrl = null;
-            $images   = $prod['thumbnails'] ?? $prod['images'] ?? $prod['imageUrls'] ?? [];
-            if (!empty($images)) {
-                $first    = is_array($images[0]) ? ($images[0]['url'] ?? $images[0]['src'] ?? '') : $images[0];
-                if ($first) $imageUrl = str_starts_with($first, 'http') ? $first : 'https:' . $first;
-            } elseif (!empty($prod['imageUrl'])) {
-                $imageUrl = $prod['imageUrl'];
+            // Image — confirmed __NEXT_DATA__ field: defaultImageUrl
+            $imageUrl = $prod['defaultImageUrl']
+                     ?? $prod['imageUrl']
+                     ?? null;
+            if (!$imageUrl) {
+                $images = $prod['thumbnails'] ?? $prod['images'] ?? $prod['imageUrls'] ?? [];
+                if (!empty($images)) {
+                    $first    = is_array($images[0]) ? ($images[0]['url'] ?? $images[0]['src'] ?? '') : $images[0];
+                    if ($first) $imageUrl = $first;
+                }
             }
-            // Upgrade to larger image
-            if ($imageUrl) $imageUrl = preg_replace('/\bsr=\d+\b/', 'sr=50', $imageUrl);
+            if ($imageUrl) {
+                if (str_starts_with($imageUrl, '//')) $imageUrl = 'https:' . $imageUrl;
+                // Upgrade Scene7 size token to 500px
+                $imageUrl = preg_replace('/\bsr=\d+\b/', 'sr=50', $imageUrl);
+            }
 
-            // URL
+            // URL — confirmed __NEXT_DATA__ field: defaultProductUrl
             $productId  = $prod['productId'] ?? $prod['styleId'] ?? '';
-            $urlSlug    = '';
-            if ($brand && $name) {
-                $urlSlug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', "{$brand}-{$name}"));
-                $urlSlug = trim($urlSlug, '-');
+            $productUrl = $prod['defaultProductUrl']
+                       ?? $prod['productUrl']
+                       ?? null;
+            if ($productUrl && !str_starts_with($productUrl, 'http')) {
+                $productUrl = 'https://www.6pm.com' . $productUrl;
             }
-            $productUrl = $productId
-                ? "https://www.6pm.com/product/{$productId}" . ($urlSlug ? "/{$urlSlug}" : '')
-                : ($prod['productUrl'] ?? null);
+            if (!$productUrl && $productId) {
+                $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim("{$brand} {$name}")));
+                $productUrl = "https://www.6pm.com/product/{$productId}/{$slug}";
+            }
             if (!$productUrl) continue;
-            if (!str_starts_with($productUrl, 'http')) $productUrl = 'https://www.6pm.com' . $productUrl;
 
             // Rating
             $rating      = isset($prod['reviewAvgRating'])  ? (float)$prod['reviewAvgRating']  : null;

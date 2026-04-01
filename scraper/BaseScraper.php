@@ -70,7 +70,7 @@ abstract class BaseScraper {
             $body = curl_exec($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $err  = curl_error($ch);
-            curl_close($ch);
+            unset($ch);
 
             if ($err) {
                 $this->say("cURL error (attempt $attempt/$retries): $err");
@@ -257,6 +257,11 @@ abstract class BaseScraper {
             'book'=>'books','novel'=>'books',
             'auto'=>'automotive','car'=>'automotive','tool'=>'tools',
             'pet'=>'pets','dog'=>'pets','cat'=>'pets',
+            'shoe'=>'clothing','boot'=>'clothing','sneaker'=>'clothing',
+            'handbag'=>'clothing','purse'=>'clothing','wallet'=>'clothing',
+            'watch'=>'electronics','jewelry'=>'beauty',
+            'paint'=>'home','hardware'=>'tools','lumber'=>'home',
+            'lawn'=>'home','garden'=>'home','patio'=>'home',
         ];
         foreach ($map as $k => $v) {
             if (str_contains($raw, $k)) return $v;
