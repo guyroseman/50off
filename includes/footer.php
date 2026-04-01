@@ -14,8 +14,8 @@
                 </div>
             </a>
             <p>Only deals with <strong style="color:#fff">50% off or more</strong>.<br>
-            We automatically scrape Amazon, Walmart &amp; Target every 2 hours.</p>
-            <p class="disclaimer">As an Amazon Associate and affiliate partner of Walmart &amp; Target, we earn from qualifying purchases at no extra cost to you. Prices verified at time of posting.</p>
+            We scrape Amazon, Target, eBay &amp; top deal sites every 3 hours.</p>
+            <p class="disclaimer">As an Amazon Associate and affiliate partner, we earn from qualifying purchases at no extra cost to you. Prices verified at time of posting.</p>
         </div>
 
         <!-- Desktop: 3 link columns individually. Mobile: wrapped in .footer-links-row -->
@@ -24,8 +24,11 @@
                 <h4>Stores</h4>
                 <ul>
                     <li><a href="/?store=amazon">🛒 Amazon</a></li>
-                    <li><a href="/?store=walmart">🔵 Walmart</a></li>
                     <li><a href="/?store=target">🎯 Target</a></li>
+                    <li><a href="/?store=ebay">🔴 eBay</a></li>
+                    <li><a href="/?store=walmart">🔵 Walmart</a></li>
+                    <li><a href="/?store=bestbuy">🟡 Best Buy</a></li>
+                    <li><a href="/?store=costco">⭕ Costco</a></li>
                 </ul>
             </div>
             <div class="footer-links">

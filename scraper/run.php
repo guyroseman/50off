@@ -101,6 +101,10 @@ if (!$jsonMode) {
     try { $db->exec("ALTER TABLE deals ADD UNIQUE KEY uq_product_url (product_url(255))"); }
     catch (\PDOException) {}
 
+    // Migrate store column from ENUM to VARCHAR for new retailers
+    try { $db->exec("ALTER TABLE deals MODIFY COLUMN store VARCHAR(50) NOT NULL DEFAULT 'other'"); }
+    catch (\PDOException) {}
+
     $exp = $db->prepare("UPDATE deals SET is_active=0
         WHERE scraped_at < NOW() - INTERVAL 3 DAY AND is_featured=0");
     $exp->execute();

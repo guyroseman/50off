@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS `deals` (
     `image_url`       VARCHAR(1000),
     `product_url`     VARCHAR(1000) NOT NULL,
     `affiliate_url`   VARCHAR(1000),
-    `store`           ENUM('amazon','walmart','target','bestbuy','ebay','costco','homedepot','lowes','macys','kohls','newegg','samsclub','staples','adorama','bhphoto','other') NOT NULL DEFAULT 'other',
+    `store`           VARCHAR(50) NOT NULL DEFAULT 'other',
     `category`        VARCHAR(100),
     `rating`          DECIMAL(3,2) DEFAULT NULL,
     `review_count`    INT UNSIGNED DEFAULT 0,
