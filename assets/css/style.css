@@ -876,3 +876,300 @@ button { font-family: inherit; cursor: pointer; }
 .deals-grid .deal-card:nth-child(6) { animation-delay: .18s; }
 .deals-grid .deal-card:nth-child(7) { animation-delay: .21s; }
 .deals-grid .deal-card:nth-child(8) { animation-delay: .24s; }
+
+/* ─── MOBILE BOTTOM NAV ──────────────────────────────────────────────────────── */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 200;
+    background: rgba(255,255,255,.97);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 20px rgba(0,0,0,.08);
+    backdrop-filter: blur(12px);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.mobile-bottom-nav-inner {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+}
+.mobile-nav-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; padding: .35rem .75rem;
+    color: var(--slate); font-size: .6rem; font-weight: 500;
+    border: none; background: none; border-radius: var(--radius-sm);
+    transition: color .15s; position: relative; text-decoration: none;
+    cursor: pointer;
+}
+.mobile-nav-item svg { width: 22px; height: 22px; stroke-width: 1.8; }
+.mobile-nav-item.active { color: var(--orange); }
+.mobile-nav-item.active svg { stroke-width: 2.5; }
+.mobile-nav-badge {
+    position: absolute; top: 2px; right: 6px;
+    background: var(--red); color: #fff;
+    font-size: .55rem; font-weight: 700;
+    padding: 0 .3rem; border-radius: 99px;
+    min-width: 14px; height: 14px;
+    display: none; align-items: center; justify-content: center;
+}
+.mobile-nav-badge.show { display: flex; }
+@media (max-width: 768px) {
+    .mobile-bottom-nav { display: block; }
+    body { padding-bottom: 56px; }
+}
+
+/* ─── MOBILE DRAWER ──────────────────────────────────────────────────────────── */
+.drawer-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45); z-index: 300;
+    backdrop-filter: blur(3px);
+    animation: fadeIn .2s ease;
+}
+.drawer-overlay.open { display: block; }
+.mobile-drawer {
+    position: fixed; top: 0; right: -100%;
+    width: min(340px, 88vw); height: 100%;
+    background: var(--white); z-index: 400;
+    transition: right .3s cubic-bezier(.4,0,.2,1);
+    overflow-y: auto; overscroll-behavior: contain;
+    display: flex; flex-direction: column;
+}
+.mobile-drawer.open { right: 0; }
+.drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--white); z-index: 1;
+}
+.drawer-close {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1.5px solid var(--border); background: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; color: var(--ink); cursor: pointer;
+    transition: all .15s;
+}
+.drawer-close:hover { border-color: var(--orange); color: var(--orange); }
+.drawer-section { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+.drawer-section-title {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--slate); margin-bottom: .65rem;
+}
+.drawer-nav-links { display: flex; flex-direction: column; gap: .1rem; }
+.drawer-nav-link {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .65rem .85rem; border-radius: var(--radius-sm);
+    font-size: .92rem; font-weight: 500; color: var(--ink);
+    transition: background .15s; text-decoration: none;
+}
+.drawer-nav-link:hover, .drawer-nav-link.active {
+    background: var(--orange-light); color: var(--orange);
+}
+.drawer-nav-link .link-right {
+    display: flex; align-items: center; gap: .4rem;
+}
+.drawer-pill-count {
+    font-size: .68rem; background: var(--ash); color: var(--slate);
+    padding: .1rem .45rem; border-radius: 99px; border: 1px solid var(--border);
+}
+.drawer-cats { display: flex; flex-wrap: wrap; gap: .4rem; }
+.drawer-cat-chip {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .35rem .8rem; border-radius: var(--radius-xl);
+    font-size: .78rem; font-weight: 500;
+    background: var(--white); border: 1.5px solid var(--border); color: var(--ink);
+    transition: all .15s; text-decoration: none;
+}
+.drawer-cat-chip:hover, .drawer-cat-chip.active {
+    background: var(--ink); border-color: var(--ink); color: var(--white);
+}
+.drawer-search-wrap {
+    display: flex; align-items: center;
+    background: var(--ash); border: 1.5px solid var(--border);
+    border-radius: var(--radius-xl); overflow: hidden; padding-left: .75rem;
+    transition: border-color .2s;
+}
+.drawer-search-wrap:focus-within { border-color: var(--orange); }
+.drawer-search-input {
+    flex: 1; background: transparent; border: none; padding: .6rem .75rem;
+    font-size: .9rem; color: var(--ink); outline: none; font-family: inherit;
+}
+.drawer-search-btn {
+    background: var(--orange); border: none; padding: .45rem .9rem;
+    margin: 3px; border-radius: var(--radius-xl);
+    color: #fff; font-weight: 600; font-size: .82rem; cursor: pointer;
+}
+
+/* ─── WISHLIST / SAVE BUTTON ─────────────────────────────────────────────────── */
+.deal-save-btn {
+    position: absolute; top: 10px; left: 10px;
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,.7);
+    background: rgba(255,255,255,.88);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 3; color: var(--slate); font-size: .95rem;
+    cursor: pointer; transition: all .2s;
+    backdrop-filter: blur(4px); box-shadow: var(--shadow-xs);
+}
+.deal-save-btn:hover { color: var(--red); border-color: var(--red-light); }
+.deal-save-btn.saved { color: var(--red); border-color: var(--red); background: var(--red-light); }
+.deal-save-btn.saved { animation: heartPop .3s ease; }
+@keyframes heartPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+}
+
+/* ─── TOAST NOTIFICATIONS ────────────────────────────────────────────────────── */
+#toast-container {
+    position: fixed; bottom: 70px; right: 1rem;
+    z-index: 600; display: flex; flex-direction: column;
+    gap: .5rem; pointer-events: none; align-items: flex-end;
+}
+.toast {
+    background: var(--ink); color: #fff;
+    padding: .65rem 1rem; border-radius: var(--radius-sm);
+    font-size: .82rem; font-weight: 500;
+    box-shadow: var(--shadow-lg);
+    pointer-events: all; max-width: 260px;
+    display: flex; align-items: center; gap: .5rem;
+    animation: toastIn .25s ease forwards;
+}
+.toast.toast-success { background: var(--green); }
+.toast.toast-deal { background: var(--orange); }
+.toast.toast-save { background: var(--red); }
+@keyframes toastIn {
+    from { opacity: 0; transform: translateX(16px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+.toast.removing { animation: toastOut .2s ease forwards; }
+@keyframes toastOut {
+    to { opacity: 0; transform: translateX(16px); }
+}
+
+/* ─── HEADER SAVED BUTTON ────────────────────────────────────────────────────── */
+.header-saved-btn {
+    display: flex; align-items: center; gap: .35rem;
+    padding: .3rem .85rem; border-radius: var(--radius-xl);
+    font-size: .8rem; font-weight: 500; color: var(--slate);
+    border: 1.5px solid var(--border); background: var(--white);
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+    position: relative; flex-shrink: 0;
+}
+.header-saved-btn:hover { border-color: var(--red); color: var(--red); }
+.header-saved-count {
+    background: var(--red); color: #fff; font-size: .62rem; font-weight: 700;
+    padding: 0 .35rem; border-radius: 99px; min-width: 16px;
+    height: 16px; display: none; align-items: center; justify-content: center;
+}
+.header-saved-count.show { display: flex; }
+
+/* ─── TRENDING / FLASH BADGES ────────────────────────────────────────────────── */
+.badge-trending { background: linear-gradient(135deg, #F59E0B, #EF4444); color: #fff; }
+.badge-flash { background: linear-gradient(135deg, var(--orange), #FF3D3D); color: #fff; animation: flashPulse 1.8s infinite; }
+@keyframes flashPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,0,.5); }
+    50% { box-shadow: 0 0 0 5px rgba(255,107,0,0); }
+}
+
+/* ─── CATEGORY QUICK-JUMP ────────────────────────────────────────────────────── */
+.cat-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: .75rem;
+    margin: 1.5rem 0 2rem;
+}
+.cat-quick-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .35rem; padding: 1.1rem .75rem;
+    background: var(--ash); border: 1.5px solid var(--border);
+    border-radius: var(--radius); text-align: center;
+    font-size: .8rem; font-weight: 600; color: var(--ink);
+    transition: all .15s; text-decoration: none;
+}
+.cat-quick-card:hover { background: var(--orange-light); border-color: var(--orange); color: var(--orange); transform: translateY(-2px); box-shadow: var(--shadow); }
+.cat-quick-icon { font-size: 1.75rem; }
+.cat-quick-count { font-size: .68rem; font-weight: 400; color: var(--slate); }
+@media (max-width: 480px) { .cat-quick-grid { grid-template-columns: repeat(3, 1fr); gap: .5rem; } }
+
+/* ─── INFINITE SCROLL SENTINEL ───────────────────────────────────────────────── */
+.scroll-loader {
+    display: none; justify-content: center; align-items: center;
+    gap: .65rem; padding: 2rem; color: var(--slate); font-size: .88rem;
+}
+.scroll-loader.visible { display: flex; }
+.scroll-spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border); border-top-color: var(--orange);
+    border-radius: 50%; animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#scroll-sentinel { height: 1px; }
+
+/* ─── SWIPE HINT (mobile carousel) ──────────────────────────────────────────── */
+.swipe-hint {
+    text-align: center; font-size: .7rem; color: var(--text-dim);
+    padding: .2rem 0 .5rem; display: none;
+}
+@media (max-width: 768px) { .swipe-hint { display: block; } }
+
+/* ─── CLICKABLE STORE / CAT CHIPS ON CARDS ───────────────────────────────────── */
+.deal-store-link {
+    font-size: .72rem; font-weight: 600; color: var(--slate);
+    text-transform: capitalize; text-decoration: none;
+    transition: color .15s;
+}
+.deal-store-link:hover { color: var(--orange); }
+.deal-cat-link {
+    font-size: .68rem; color: var(--slate); text-decoration: none;
+    background: var(--ash); padding: .1rem .45rem;
+    border-radius: var(--radius-xl); border: 1px solid var(--border);
+    transition: all .15s;
+}
+.deal-cat-link:hover { background: var(--orange-light); border-color: var(--orange); color: var(--orange); }
+
+/* ─── STORE BANNER STRIP ─────────────────────────────────────────────────────── */
+.store-link-strip {
+    display: flex; gap: .65rem; flex-wrap: wrap; margin: 0 0 2rem;
+}
+.store-link-card {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .6rem 1.1rem; border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border); background: var(--white);
+    font-size: .85rem; font-weight: 600; color: var(--ink);
+    transition: all .15s; text-decoration: none; box-shadow: var(--shadow-xs);
+}
+.store-link-card:hover { border-color: var(--orange); color: var(--orange); box-shadow: var(--shadow); }
+.store-link-card .cnt { font-size: .72rem; font-weight: 400; color: var(--slate); }
+
+/* ─── IMPROVED MOBILE CARD SIZING ────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .deal-card-body { padding: .7rem; gap: .3rem; }
+    .deal-title { font-size: .8rem; }
+    .sale-price { font-size: 1.1rem; }
+    .orig-price { font-size: .74rem; }
+    .you-save { font-size: .63rem; padding: .08rem .35rem; }
+    .deal-btn { font-size: .77rem; padding: .48rem .75rem; }
+    .verified-badge { font-size: .63rem; padding: .18rem .45rem; }
+    .price-history-link { display: none; }
+    .cat-bar-inner { padding: .45rem .9rem; gap: .3rem; }
+    .cat-chip { font-size: .74rem; padding: .28rem .7rem; }
+    .hero-stat-num { font-size: 1.1rem; }
+    .hero-stats-strip { gap: 1.25rem; padding: 1rem 0 1.5rem; }
+    .section-title { font-size: 1.15rem !important; }
+    .hot-deals-scroll .deal-card { width: 185px; }
+    .deal-save-btn { width: 26px; height: 26px; font-size: .8rem; }
+}
+
+/* ─── TOUCH DEVICE: remove hover effects that don't work well ────────────────── */
+@media (hover: none) {
+    .deal-card:hover { transform: none; box-shadow: var(--shadow-sm); }
+    .deal-btn:hover { transform: none; box-shadow: none; }
+}
+
+/* ─── SAVED DEALS PAGE / PANEL ───────────────────────────────────────────────── */
+.saved-empty {
+    text-align: center; padding: 3rem 1rem; color: var(--slate);
+    font-size: .95rem;
+}
+.saved-empty .big-icon { font-size: 3rem; margin-bottom: .75rem; display: block; }

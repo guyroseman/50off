@@ -37,59 +37,209 @@ class AmazonScraper extends BaseScraper
 
         $this->cookieJar = tempnam(sys_get_temp_dir(), '50off_amz_');
 
+        // ── Source 1: Deals page (widget JSON) ───────────────────────────────
         $entryUrl = 'https://www.amazon.com/deals/?discounts-widget=' . self::FILTER;
 
-        $this->say("→ Fetching deals page...");
+        $this->say("→ [1/2] Deals page...");
         $html = $this->fetchAmazonPage($entryUrl);
-        if (!$html) {
-            $this->say('✗ Failed to fetch. Aborting.');
-            $this->logResult('error', 'Could not fetch Amazon deals page');
-            return;
-        }
-        $this->say('  ✓ ' . number_format(strlen($html)) . ' bytes');
+        $savedTotal = 0;
 
-        $data = $this->extractWidgetData($html);
-        if (!$data) {
-            $this->say('✗ No widget JSON found. Aborting.');
-            $this->logResult('error', 'mountWidget JSON extraction failed');
-            return;
-        }
+        if ($html) {
+            $this->say('  ✓ ' . number_format(strlen($html)) . ' bytes');
+            $data = $this->extractWidgetData($html);
+            if ($data) {
+                $products  = $data['products'];
+                $nextIndex = $data['nextIndex'];
+                $widgetId  = $data['widgetId'];
+                $pageId    = $data['pageId'];
+                $csrfToken = $data['csrfToken'];
 
-        $products  = $data['products'];
-        $nextIndex = $data['nextIndex'];
-        $widgetId  = $data['widgetId'];
-        $pageId    = $data['pageId'];
-        $csrfToken = $data['csrfToken'];
+                $this->say('  Initial batch: ' . count($products) . ' | nextIndex: ' . $nextIndex);
+                $savedTotal = $this->processProducts($products);
 
-        $this->say('  Initial batch: ' . count($products) . ' | nextIndex: ' . $nextIndex);
-
-        $savedTotal = $this->processProducts($products);
-
-        // ── Pagination via /deals/widget-api ─────────────────────────────────
-        $pageSize = count($products);
-        while ($savedTotal < 90 && $nextIndex > 0 && $pageSize >= 24 && $widgetId && $pageId) {
-            $this->say("→ Paginating startIndex={$nextIndex}...");
-            sleep(rand(1, 2));
-
-            $apiBody = $this->fetchPaginationApi($widgetId, $pageId, $nextIndex, $csrfToken, $html);
-            if (!$apiBody) {
-                $this->say('  ✗ Pagination failed. Stopping.');
-                break;
+                // Pagination via /deals/widget-api
+                $pageSize = count($products);
+                while ($savedTotal < 90 && $nextIndex > 0 && $pageSize >= 24 && $widgetId && $pageId) {
+                    $this->say("  Paginating startIndex={$nextIndex}...");
+                    sleep(rand(1, 2));
+                    $apiBody = $this->fetchPaginationApi($widgetId, $pageId, $nextIndex, $csrfToken, $html);
+                    if (!$apiBody) { $this->say('  ✗ Pagination failed. Stopping.'); break; }
+                    $apiData   = json_decode($apiBody, true);
+                    $products  = $apiData['productSearchResponse']['products'] ?? [];
+                    $nextIndex = (int)($apiData['productSearchResponse']['nextIndex'] ?? 0);
+                    $pageSize  = count($products);
+                    if (empty($products)) { $this->say('  No more results.'); break; }
+                    $this->say('  ✓ Got ' . $pageSize . ' products');
+                    $savedTotal += $this->processProducts($products);
+                }
+            } else {
+                $this->say('  ✗ No widget JSON found in deals page');
             }
-
-            $apiData   = json_decode($apiBody, true);
-            $products  = $apiData['productSearchResponse']['products'] ?? [];
-            $nextIndex = (int)($apiData['productSearchResponse']['nextIndex'] ?? 0);
-            $pageSize  = count($products);
-
-            if (empty($products)) { $this->say('  No more results.'); break; }
-
-            $this->say('  ✓ Got ' . $pageSize . ' products');
-            $savedTotal += $this->processProducts($products);
+        } else {
+            $this->say('  ✗ Failed to fetch deals page');
         }
+
+        $this->say("  Deals page total: {$savedTotal}");
+
+        // ── Source 2: Search results (50%+ refinement, sorted by discount) ───
+        sleep(rand(2, 4));
+        $searchSaved = $this->scrapeSearchPages();
+        $savedTotal += $searchSaved;
 
         $this->say("══ Done: {$savedTotal} deals saved ══");
         $this->logResult('success', "amazon.com US 50%+ (saved: {$savedTotal})");
+    }
+
+    // ── Scrape amazon.com/s?rh=p_8:50- search result pages ───────────────────
+    private function scrapeSearchPages(): int
+    {
+        $this->say("→ [2/2] Search results (50%+ off, sorted by discount)...");
+        $saved = 0;
+
+        for ($page = 1; $page <= 8 && $saved < 120; $page++) {
+            $url = 'https://www.amazon.com/s?rh=p_8%3A50-&s=discount-rank&page=' . $page;
+            $this->say("  Search page {$page}...");
+            sleep(rand(2, 4));
+
+            $html = $this->fetchAmazonPage($url);
+            if (!$html) {
+                $this->say("  ✗ Failed page {$page}");
+                break;
+            }
+
+            // Check for captcha / robot check
+            if (stripos($html, 'robot check') !== false || stripos($html, 'captcha') !== false) {
+                $this->say("  ✗ Bot check triggered. Stopping search scrape.");
+                break;
+            }
+
+            $pageSaved = $this->parseSearchResults($html);
+            $this->say("  ✓ Page {$page}: {$pageSaved} deals");
+            $saved += $pageSaved;
+
+            // If no results found, Amazon may have blocked or we've exhausted pages
+            if ($pageSaved === 0) break;
+        }
+
+        $this->say("  Search total: {$saved}");
+        return $saved;
+    }
+
+    private function parseSearchResults(string $html): int
+    {
+        $saved  = 0;
+        $xpath  = $this->loadDom($html);
+        if (!$xpath) return 0;
+
+        // Each search result is a div with data-component-type="s-search-result"
+        $results = $xpath->query('//div[@data-component-type="s-search-result" and @data-asin and string-length(@data-asin)>0]');
+        if (!$results || $results->length === 0) {
+            $this->say("  No s-search-result elements found");
+            return 0;
+        }
+
+        foreach ($results as $result) {
+            if (!($result instanceof \DOMElement)) continue;
+            $asin = $result->getAttribute('data-asin');
+            if (!$asin || $asin === '') continue;
+
+            // ── Title ───────────────────────────────────────────────────────
+            $title = '';
+            $titleSpans = $xpath->query('.//h2//span[not(@class) or not(contains(@class,"visually"))]', $result);
+            foreach ($titleSpans as $ts) {
+                $t = trim($ts->textContent);
+                if (strlen($t) > strlen($title)) $title = $t;
+            }
+            if (!$title || strlen($title) < 5) continue;
+            $title = trim(html_entity_decode($title, ENT_QUOTES, 'UTF-8'));
+
+            // ── Sale price (first non-struck price) ─────────────────────────
+            $salePriceNode = $xpath->query(
+                './/span[contains(@class,"a-price") and not(contains(@class,"a-text-price")) and not(@data-a-strike="true")]//span[@class="a-offscreen"]',
+                $result
+            )->item(0);
+            $sale = $salePriceNode ? $this->parsePrice($salePriceNode->textContent) : 0.0;
+            if ($sale <= 0) continue;
+
+            // ── Original / was price (struck through) ───────────────────────
+            $origNode = $xpath->query(
+                './/span[contains(@class,"a-text-price") or @data-a-strike="true"]//span[@class="a-offscreen"]',
+                $result
+            )->item(0);
+            $original = $origNode ? $this->parsePrice($origNode->textContent) : 0.0;
+
+            // ── Discount % badge ─────────────────────────────────────────────
+            $pct = 0;
+            $badgeNodes = $xpath->query('.//*[contains(text(),"%") and contains(text(),"off")]', $result);
+            foreach ($badgeNodes as $bn) {
+                if (preg_match('/(\d+)%\s*off/i', $bn->textContent, $m)) {
+                    $pct = max($pct, (int)$m[1]);
+                }
+            }
+
+            // Reconstruct missing original from pct, or compute pct from both prices
+            if ($original <= 0 && $pct >= 50 && $sale > 0) {
+                $original = round($sale / (1 - $pct / 100), 2);
+            }
+            if ($original > 0 && $sale < $original) {
+                $pct = max($pct, $this->calcDiscount($original, $sale));
+            }
+
+            if ($pct < 50 || $original <= 0 || $original <= $sale) continue;
+
+            // ── Image ────────────────────────────────────────────────────────
+            $imageUrl = null;
+            $imgNode  = $xpath->query('.//img[contains(@class,"s-image")]', $result)->item(0);
+            if ($imgNode instanceof \DOMElement) {
+                $src = $imgNode->getAttribute('src');
+                if (str_contains($src, 'media-amazon.com') || str_contains($src, 'm.media-amazon')) {
+                    // Upgrade to 500px auto-crop
+                    $imageUrl = preg_replace('/\._[A-Z0-9,_]+_\.(jpe?g|png|webp)/i', '._AC_SL500_.$1', $src);
+                    if (!str_contains($imageUrl, '_AC_SL500_')) {
+                        // URL without size token — append directly
+                        $imageUrl = preg_replace('/\.(jpe?g|png|webp)$/i', '._AC_SL500_.$1', $src);
+                    }
+                }
+            }
+
+            // ── Rating ───────────────────────────────────────────────────────
+            $rating      = null;
+            $ratingNode  = $xpath->query('.//span[contains(@class,"a-icon-alt")]', $result)->item(0);
+            if ($ratingNode && preg_match('/^([\d.]+)\s+out/i', $ratingNode->textContent, $m)) {
+                $rating = (float)$m[1];
+            }
+
+            // ── Review count ─────────────────────────────────────────────────
+            $reviewCount  = 0;
+            $reviewNode   = $xpath->query('.//span[@class="a-size-base s-underline-text"]', $result)->item(0);
+            if (!$reviewNode) {
+                $reviewNode = $xpath->query('.//a[contains(@class,"s-link-style")]//span[contains(@class,"a-size-base")]', $result)->item(0);
+            }
+            if ($reviewNode) {
+                $reviewCount = (int)str_replace([',', '.', ' '], '', $reviewNode->textContent);
+            }
+
+            // ── URLs ─────────────────────────────────────────────────────────
+            $productUrl   = "https://www.amazon.com/dp/{$asin}";
+            $affiliateUrl = "https://www.amazon.com/dp/{$asin}?tag={$this->tag}";
+
+            if ($this->saveDeal([
+                'title'          => $title,
+                'original_price' => $original,
+                'sale_price'     => $sale,
+                'discount_pct'   => $pct,
+                'image_url'      => $imageUrl,
+                'product_url'    => $productUrl,
+                'affiliate_url'  => $affiliateUrl,
+                'category'       => $this->mapCategory($title),
+                'rating'         => $rating,
+                'review_count'   => $reviewCount,
+            ])) {
+                $saved++;
+            }
+        }
+
+        return $saved;
     }
 
     // ── Extract widget JSON from page HTML ────────────────────────────────────

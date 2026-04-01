@@ -82,6 +82,32 @@ include 'includes/header.php';
     </div>
 </div>
 
+<!-- ══ CATEGORY QUICK-JUMP ═══════════════════════════════════════════════ -->
+<section aria-label="Browse by category">
+<div class="cat-quick-grid">
+    <?php
+    $catLinks = [
+        'electronics' => ['Electronics', '📱'],
+        'kitchen'     => ['Kitchen',     '🍳'],
+        'clothing'    => ['Clothing',    '👗'],
+        'home'        => ['Home',        '🏠'],
+        'toys'        => ['Toys',        '🧸'],
+        'sports'      => ['Sports',      '⚽'],
+        'beauty'      => ['Beauty',      '💄'],
+        'health'      => ['Health',      '💊'],
+        'books'       => ['Books',       '📚'],
+        'clearance'   => ['Clearance',   '🏷️'],
+    ];
+    foreach ($catLinks as $slug => [$label, $icon]):
+    ?>
+    <a href="/?category=<?= urlencode($slug) ?>" class="cat-quick-card">
+        <span class="cat-quick-icon"><?= $icon ?></span>
+        <span><?= $label ?></span>
+    </a>
+    <?php endforeach; ?>
+</div>
+</section>
+
 <!-- ══ HOT DEALS CAROUSEL — matches Figma HotDealsCarousel ════════════════ -->
 <?php if ($hotDeals): ?>
 <section class="hot-deals-section">
@@ -102,7 +128,20 @@ include 'includes/header.php';
     <div class="hot-deals-scroll" id="hot-deals-scroll">
         <?php foreach($hotDeals as $deal): $lazy = false; include 'includes/deal_card.php'; endforeach; ?>
     </div>
+    <p class="swipe-hint">← Swipe for more →</p>
 </section>
+
+<!-- ══ STORE QUICK-LINKS ════════════════════════════════════════════════════ -->
+<div class="store-link-strip" aria-label="Browse by store">
+    <?php foreach($stores as $s): ?>
+    <a href="/?store=<?= h($s['store']) ?>" class="store-link-card">
+        <?= storeLogo($s['store']) ?>
+        <?= ucfirst(h($s['store'])) ?> Deals
+        <span class="cnt">(<?= $s['cnt'] ?>)</span>
+    </a>
+    <?php endforeach; ?>
+</div>
+
 <?php endif; ?>
 <?php endif; ?>
 
@@ -146,7 +185,13 @@ include 'includes/header.php';
     </div>
     <?php endif; ?>
 
-    <!-- Pagination -->
+    <!-- Scroll loader for infinite scroll (JS replaces pagination) -->
+    <div class="scroll-loader" id="scroll-loader">
+        <div class="scroll-spinner"></div> Loading more deals…
+    </div>
+    <div id="scroll-sentinel"></div>
+
+    <!-- Pagination (hidden when infinite scroll JS loads) -->
     <?php if($pagData['pages'] > 1): ?>
     <nav class="pagination" aria-label="Pagination">
         <?php if($page > 1): ?>
