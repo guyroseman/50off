@@ -93,35 +93,31 @@ class SixPmScraper extends BaseScraper
         $this->logResult($savedTotal > 0 ? 'success' : 'warning', "6pm.com 50%+ (saved: {$savedTotal})");
     }
 
-    // ── Primary: window.__INITIAL_STATE__ or window.__APP_STATE__ ───────────
+    // ── Primary: extract "products":[...] array from __INITIAL_STATE__ ───────
+    // 6pm embeds products as: ..."products":[{"brandName":"...","price":"$xx","originalPrice":"$xx","percentOff":"xx%",...}]
     private function parseInitialState(string $html): int
     {
-        $state = null;
-        foreach ([
-            '/window\.__INITIAL_STATE__\s*=\s*(\{.+?\});\s*(?:window\.|<\/script>)/s',
-            '/window\.__APP_STATE__\s*=\s*(\{.+?\});\s*(?:window\.|<\/script>)/s',
-        ] as $pattern) {
-            if (preg_match($pattern, $html, $m)) {
-                $decoded = json_decode($m[1], true);
-                if ($decoded && json_last_error() === JSON_ERROR_NONE) { $state = $decoded; break; }
-            }
+        // Find the products array using balanced-brace extraction (state JSON too large to parse whole)
+        $needle = '"products":';
+        $pos = strpos($html, $needle);
+        if ($pos === false) { $this->say("  No products key in page"); return 0; }
+
+        $arrStart = strpos($html, '[', $pos + strlen($needle));
+        if ($arrStart === false) return 0;
+
+        // Balance brackets to extract the full array
+        $depth = 0; $i = $arrStart; $len = strlen($html);
+        while ($i < $len) {
+            $c = $html[$i];
+            if ($c === '[' || $c === '{') $depth++;
+            elseif ($c === ']' || $c === '}') { $depth--; if ($depth === 0) break; }
+            $i++;
         }
-        if (!$state) return 0;
+        $json = substr($html, $arrStart, $i - $arrStart + 1);
+        $products = json_decode($json, true);
 
-        // 6pm state structure: state.products.list[] or state.search.results[]
-        $products = $state['products']['list']
-                 ?? $state['search']['results']
-                 ?? $state['products']['searchResult']['list']
-                 ?? [];
-
-        if (empty($products) && isset($state['products'])) {
-            foreach ($state['products'] as $val) {
-                if (is_array($val) && isset($val[0]['productId'])) { $products = $val; break; }
-            }
-        }
-
-        if (empty($products)) {
-            $this->say("  No products in __INITIAL_STATE__");
+        if (!$products || json_last_error() !== JSON_ERROR_NONE || !isset($products[0]['productId'])) {
+            $this->say("  Could not extract products array");
             return 0;
         }
 
@@ -214,37 +210,43 @@ class SixPmScraper extends BaseScraper
             $title = trim($brand ? "{$brand} {$name}" : $name);
             if (!$title) continue;
 
-            // Pricing — confirmed __NEXT_DATA__ fields: msrp (cents), price (cents), percentOff
+            // Pricing — two formats:
+            // 1. String prices: price="$43.99", originalPrice="$275.00", percentOff="84%"  (__INITIAL_STATE__)
+            // 2. Integer cents: price=4399, msrp=27500  (__NEXT_DATA__)
             $saleRaw     = $prod['price']           ?? $prod['salePrice']       ?? $prod['minPrice']  ?? 0;
             $originalRaw = $prod['msrp']            ?? $prod['originalPrice']   ?? $prod['retailPrice']?? $prod['maxPrice']  ?? 0;
-            $pct         = (int)($prod['percentOff'] ?? $prod['discountPercent'] ?? 0);
+            $pctRaw      = $prod['percentOff']      ?? $prod['discountPercent'] ?? 0;
 
-            // Convert cents → dollars if needed
-            $divisor  = $centsMode ? 100.0 : 1.0;
-            $sale     = (float)$saleRaw     / $divisor;
-            $original = (float)$originalRaw / $divisor;
+            // Strip $ and % from string formats
+            $sale     = is_string($saleRaw)     ? $this->parsePrice((string)$saleRaw)     : (float)$saleRaw;
+            $original = is_string($originalRaw) ? $this->parsePrice((string)$originalRaw) : (float)$originalRaw;
+            $pct      = is_string($pctRaw)       ? (int)preg_replace('/[^0-9]/', '', $pctRaw) : (int)$pctRaw;
+
+            // If still looks like cents (integer > 1000 with no decimal used), convert
+            if ($centsMode && $sale > 100 && fmod($sale, 1.0) === 0.0) {
+                $sale     /= 100.0;
+                $original /= 100.0;
+            }
 
             if ($sale <= 0) continue;
             if ($original <= 0 && $pct > 0) $original = round($sale / (1 - $pct / 100), 2);
             if ($original > 0 && $sale < $original) $pct = max($pct, $this->calcDiscount($original, $sale));
             if ($pct < 50 || $original <= 0 || $original <= $sale) continue;
 
-            // Image — confirmed __NEXT_DATA__ field: defaultImageUrl
-            $imageUrl = $prod['defaultImageUrl']
-                     ?? $prod['imageUrl']
-                     ?? null;
+            // Image — __INITIAL_STATE__ uses msaImageId (Amazon CDN image ID)
+            //         __NEXT_DATA__ uses defaultImageUrl
+            $imageUrl = $prod['defaultImageUrl'] ?? $prod['imageUrl'] ?? null;
+            if (!$imageUrl && !empty($prod['msaImageId'])) {
+                $imageUrl = 'https://m.media-amazon.com/images/I/' . $prod['msaImageId'] . '._AC_SL500_.jpg';
+            }
             if (!$imageUrl) {
                 $images = $prod['thumbnails'] ?? $prod['images'] ?? $prod['imageUrls'] ?? [];
                 if (!empty($images)) {
-                    $first    = is_array($images[0]) ? ($images[0]['url'] ?? $images[0]['src'] ?? '') : $images[0];
+                    $first = is_array($images[0]) ? ($images[0]['url'] ?? $images[0]['src'] ?? '') : $images[0];
                     if ($first) $imageUrl = $first;
                 }
             }
-            if ($imageUrl) {
-                if (str_starts_with($imageUrl, '//')) $imageUrl = 'https:' . $imageUrl;
-                // Upgrade Scene7 size token to 500px
-                $imageUrl = preg_replace('/\bsr=\d+\b/', 'sr=50', $imageUrl);
-            }
+            if ($imageUrl && str_starts_with($imageUrl, '//')) $imageUrl = 'https:' . $imageUrl;
 
             // URL — confirmed __NEXT_DATA__ field: defaultProductUrl
             $productId  = $prod['productId'] ?? $prod['styleId'] ?? '';
