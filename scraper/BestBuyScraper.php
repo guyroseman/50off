@@ -25,17 +25,25 @@ class BestBuyScraper extends BaseScraper
     protected string $store = 'bestbuy';
     private   int    $limit = 60;
 
-    // Clearance and deals category pages to scrape
+    // BestBuy clearance pages — run via GitHub Actions to bypass Incapsula
     private const PAGES = [
-        ['url' => 'https://www.bestbuy.com/site/misc/clearance/pcmcat128500050004.c',        'cat' => 'Clearance'],
-        ['url' => 'https://www.bestbuy.com/site/electronics/clearance-refurbished/abcat0100000.c', 'cat' => 'Electronics'],
-        ['url' => 'https://www.bestbuy.com/site/computers-pcs/clearance-computers/pcmcat232000050001.c', 'cat' => 'Computers'],
+        ['url' => 'https://www.bestbuy.com/site/misc/clearance/pcmcat128500050004.c?intl=nosplash',                 'cat' => 'Clearance'],
+        ['url' => 'https://www.bestbuy.com/site/electronics/clearance-refurbished/abcat0100000.c?intl=nosplash',    'cat' => 'Electronics'],
+        ['url' => 'https://www.bestbuy.com/site/computers-pcs/clearance-computers/pcmcat232000050001.c?intl=nosplash', 'cat' => 'Computers'],
+        ['url' => 'https://www.bestbuy.com/site/tvs/clearance-tvs/pcmcat284700050000.c?intl=nosplash',              'cat' => 'TVs'],
     ];
+
+    // BestBuy public deals JSON API
+    private const API_URL = 'https://www.bestbuy.com/api/deals/v1/getDeals?currentPage=1&pageSize=48&type=CLEARANCE';
 
     public function scrape(): void
     {
         $this->say('=== Best Buy Scraper — bestbuy.com (50%+ off) ===');
-        $savedTotal = 0;
+        $this->say('  ℹ Best run from GitHub Actions (bypasses Incapsula)');
+
+        // Try the JSON deals API first — no bot protection on this endpoint
+        $savedTotal = $this->scrapeDealsApi();
+        $this->say("  API total: {$savedTotal}");
 
         foreach (self::PAGES as $page) {
             if ($savedTotal >= $this->limit) break;
@@ -89,6 +97,50 @@ class BestBuyScraper extends BaseScraper
 
         $this->say("══ Done: {$savedTotal} deals saved ══");
         $this->logResult($savedTotal > 0 ? 'success' : 'warning', "bestbuy.com 50%+ (saved: {$savedTotal})");
+    }
+
+    // ── BestBuy public deals JSON API (no bot protection) ────────────────────
+    private function scrapeDealsApi(): int
+    {
+        $this->say("→ Deals API...");
+        $body = $this->fetchJson(self::API_URL, [
+            'Accept: application/json',
+            'Referer: https://www.bestbuy.com/',
+            'Origin: https://www.bestbuy.com',
+        ]);
+        if (!$body || empty($body['deals'])) {
+            $this->say("  ✗ API returned no deals");
+            return 0;
+        }
+        $this->say("  Found " . count($body['deals']) . " deals from API");
+        $saved = 0;
+        foreach ($body['deals'] as $deal) {
+            $title    = $deal['name'] ?? $deal['title'] ?? null;
+            if (!$title) continue;
+            $sale     = (float)($deal['salePrice']     ?? $deal['price']        ?? 0);
+            $original = (float)($deal['regularPrice']  ?? $deal['originalPrice'] ?? 0);
+            $pct      = (int)($deal['percentSavings']  ?? 0);
+            if ($sale <= 0 || $original <= 0 || $original <= $sale) continue;
+            $pct = max($pct, $this->calcDiscount($original, $sale));
+            if ($pct < 50) continue;
+            $sku        = $deal['sku'] ?? $deal['skuId'] ?? '';
+            $productUrl = isset($deal['url'])
+                ? (str_starts_with($deal['url'], 'http') ? $deal['url'] : 'https://www.bestbuy.com' . $deal['url'])
+                : "https://www.bestbuy.com/site/{$sku}.p";
+            if ($this->saveDeal([
+                'title'          => trim(html_entity_decode(strip_tags($title), ENT_QUOTES, 'UTF-8')),
+                'original_price' => $original,
+                'sale_price'     => $sale,
+                'discount_pct'   => $pct,
+                'image_url'      => $deal['thumbnailImage'] ?? $deal['image'] ?? null,
+                'product_url'    => $productUrl,
+                'affiliate_url'  => $productUrl,
+                'category'       => $this->mapCategory($title),
+                'rating'         => isset($deal['customerReviewAverage']) ? (float)$deal['customerReviewAverage'] : null,
+                'review_count'   => (int)($deal['customerReviewCount'] ?? 0),
+            ])) $saved++;
+        }
+        return $saved;
     }
 
     // ── Try to extract products from embedded page JSON ───────────────────────

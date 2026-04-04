@@ -1,4 +1,4 @@
-name: Scrape Deals (Amazon + Target)
+name: Scrape Deals (All Retailers)
 on:
   schedule:
     - cron: '30 */3 * * *'   # Every 3 hours at :30 (offset from Hostinger cron at :00)
@@ -7,7 +7,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repo
@@ -19,68 +19,80 @@ jobs:
           php-version: '8.2'
           extensions: curl, json, mbstring
 
-      - name: Scrape Amazon and push to site
+      - name: Scrape Amazon
         run: |
-          echo "=== Scraping Amazon ==="
+          echo "=== Amazon ==="
           JSON=$(SCRAPER_OUTPUT=json php scraper/run.php amazon)
-          EXIT=$?
-
           COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
-          echo "Amazon deals scraped: $COUNT (exit: $EXIT)"
-
+          echo "Scraped: $COUNT"
           if [ "$COUNT" -gt 0 ]; then
-            echo "Submitting Amazon deals to 50offsale.com..."
-            RESULT=$(curl -sL --max-time 30 \
-              -X POST \
+            curl -sL --max-time 30 -X POST \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
-              -d "$JSON" \
-              "https://50offsale.com/api/ingest.php" 2>/dev/null || echo '{"error":"request failed"}')
-            echo "Result: $RESULT"
-          else
-            echo "No Amazon deals found — skipping submission"
+              -d "$JSON" "https://50offsale.com/api/ingest.php"
           fi
 
-      - name: Scrape Target and push to site
+      - name: Scrape Target
         run: |
-          echo "=== Scraping Target (RedSky API) ==="
+          echo "=== Target ==="
           JSON=$(SCRAPER_OUTPUT=json php scraper/run.php target)
-          EXIT=$?
-
           COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
-          echo "Target deals scraped: $COUNT (exit: $EXIT)"
-
+          echo "Scraped: $COUNT"
           if [ "$COUNT" -gt 0 ]; then
-            echo "Submitting Target deals to 50offsale.com..."
-            RESULT=$(curl -sL --max-time 30 \
-              -X POST \
+            curl -sL --max-time 30 -X POST \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
-              -d "$JSON" \
-              "https://50offsale.com/api/ingest.php" 2>/dev/null || echo '{"error":"request failed"}')
-            echo "Result: $RESULT"
-          else
-            echo "No Target deals found — skipping submission"
+              -d "$JSON" "https://50offsale.com/api/ingest.php"
           fi
 
-      - name: Scrape eBay and push to site
+      - name: Scrape eBay
         run: |
-          echo "=== Scraping eBay Deals ==="
+          echo "=== eBay ==="
           JSON=$(SCRAPER_OUTPUT=json php scraper/run.php ebay)
-          EXIT=$?
-
           COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
-          echo "eBay deals scraped: $COUNT (exit: $EXIT)"
-
+          echo "Scraped: $COUNT"
           if [ "$COUNT" -gt 0 ]; then
-            echo "Submitting eBay deals to 50offsale.com..."
-            RESULT=$(curl -sL --max-time 30 \
-              -X POST \
+            curl -sL --max-time 30 -X POST \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
-              -d "$JSON" \
-              "https://50offsale.com/api/ingest.php" 2>/dev/null || echo '{"error":"request failed"}')
-            echo "Result: $RESULT"
-          else
-            echo "No eBay deals found — skipping submission"
+              -d "$JSON" "https://50offsale.com/api/ingest.php"
+          fi
+
+      - name: Scrape Walmart
+        run: |
+          echo "=== Walmart ==="
+          JSON=$(SCRAPER_OUTPUT=json php scraper/run.php walmart)
+          COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
+          echo "Scraped: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            curl -sL --max-time 30 -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
+              -d "$JSON" "https://50offsale.com/api/ingest.php"
+          fi
+
+      - name: Scrape Best Buy
+        run: |
+          echo "=== Best Buy ==="
+          JSON=$(SCRAPER_OUTPUT=json php scraper/run.php bestbuy)
+          COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
+          echo "Scraped: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            curl -sL --max-time 30 -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
+              -d "$JSON" "https://50offsale.com/api/ingest.php"
+          fi
+
+      - name: Scrape 6pm
+        run: |
+          echo "=== 6pm ==="
+          JSON=$(SCRAPER_OUTPUT=json php scraper/run.php 6pm)
+          COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
+          echo "Scraped: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            curl -sL --max-time 30 -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
+              -d "$JSON" "https://50offsale.com/api/ingest.php"
           fi
