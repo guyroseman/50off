@@ -13,6 +13,13 @@ $deals   = getDeals($opts);
 $total   = countDeals($opts);
 $pagData = paginate($total, $perPage, $page);
 
+// ── Lightweight JSON mode for infinite scroll ────────────────────────────────
+if (!empty($_GET['_json'])) {
+    header('Content-Type: text/html; charset=utf-8');
+    foreach ($deals as $deal) { $lazy = true; include __DIR__ . '/includes/deal_card.php'; }
+    exit;
+}
+
 // Hot deals = featured or highest discount, expiring soon concept
 $hotDeals = getDeals(['featured' => true, 'limit' => 8, 'sort' => 'discount']);
 if (count($hotDeals) < 4) $hotDeals = getDeals(['sort' => 'discount', 'limit' => 8]);
@@ -82,31 +89,29 @@ include 'includes/header.php';
     </div>
 </div>
 
-<!-- ══ CATEGORY QUICK-JUMP ═══════════════════════════════════════════════ -->
-<section aria-label="Browse by category">
-<div class="cat-quick-grid">
+<!-- ══ CATEGORY PILL STRIP ════════════════════════════════════════════════ -->
+<nav class="cat-pill-strip" aria-label="Browse by category">
+    <a href="/" class="cat-pill <?= (!$store && !$category) ? 'active' : '' ?>">All</a>
     <?php
     $catLinks = [
         'electronics' => ['Electronics', '📱'],
-        'kitchen'     => ['Kitchen',     '🍳'],
         'clothing'    => ['Clothing',    '👗'],
         'home'        => ['Home',        '🏠'],
+        'kitchen'     => ['Kitchen',     '🍳'],
         'toys'        => ['Toys',        '🧸'],
         'sports'      => ['Sports',      '⚽'],
         'beauty'      => ['Beauty',      '💄'],
         'health'      => ['Health',      '💊'],
-        'books'       => ['Books',       '📚'],
-        'clearance'   => ['Clearance',   '🏷️'],
+        'tools'       => ['Tools',       '🔧'],
+        'pets'        => ['Pets',        '🐾'],
     ];
     foreach ($catLinks as $slug => [$label, $icon]):
     ?>
-    <a href="/?category=<?= urlencode($slug) ?>" class="cat-quick-card">
-        <span class="cat-quick-icon"><?= $icon ?></span>
-        <span><?= $label ?></span>
+    <a href="/?category=<?= urlencode($slug) ?>" class="cat-pill <?= ($category === $slug) ? 'active' : '' ?>">
+        <?= $icon ?> <?= $label ?>
     </a>
     <?php endforeach; ?>
-</div>
-</section>
+</nav>
 
 <!-- ══ HOT DEALS CAROUSEL — matches Figma HotDealsCarousel ════════════════ -->
 <?php if ($hotDeals): ?>

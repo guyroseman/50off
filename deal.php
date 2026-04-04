@@ -14,7 +14,17 @@ if (!$deal) {
 }
 
 $pageTitle = $deal['title'];
-$related   = getDeals(['category' => $deal['category'], 'store' => $deal['store'], 'limit' => 4]);
+$related   = getRelatedDeals($deal['id'], $deal['category'] ?? '', $deal['store'], 8);
+
+// Build image src using same proxy logic as deal_card.php
+$dealImgSrc = '/assets/images/placeholder.svg';
+if (!empty($deal['image_url'])) {
+    $imgHost = parse_url($deal['image_url'], PHP_URL_HOST) ?? '';
+    $directHosts = ['i.ebayimg.com', 'thumbs.ebaystatic.com', 'm.media-amazon.com', 'i.target.com', 'target.scene7.com'];
+    $isDirect = false;
+    foreach ($directHosts as $dh) { if (str_contains($imgHost, $dh)) { $isDirect = true; break; } }
+    $dealImgSrc = $isDirect ? $deal['image_url'] : '/api/img.php?url=' . urlencode($deal['image_url']);
+}
 
 include 'includes/header.php';
 ?>
@@ -33,7 +43,7 @@ include 'includes/header.php';
         <div class="deal-detail-img-wrap">
             <span class="discount-badge badge-fire deal-detail-badge">-<?= $deal['discount_pct'] ?>%</span>
             <img
-                src="<?= h($deal['image_url'] ?? '/assets/images/placeholder.svg') ?>"
+                src="<?= h($dealImgSrc) ?>"
                 alt="<?= h($deal['title']) ?>"
                 class="deal-detail-img"
                 onerror="this.src='/assets/images/placeholder.svg'"
@@ -95,15 +105,11 @@ include 'includes/header.php';
     </div>
 
     <!-- Related deals -->
-    <?php if(count($related) > 1): ?>
+    <?php if($related): ?>
     <section class="related-section">
-        <h2 class="section-title">Similar Deals</h2>
-        <div class="deals-grid deals-grid--sm">
-            <?php foreach($related as $d):
-                if($d['id'] === $deal['id']) continue;
-                $deal_card_item = $d; // rename to avoid overwriting
-            ?>
-            <?php $deal = $deal_card_item; $lazy = true; include 'includes/deal_card.php'; endforeach; ?>
+        <h2 class="section-title">You Might Also Like</h2>
+        <div class="deals-grid">
+            <?php foreach($related as $deal): $lazy = true; include 'includes/deal_card.php'; endforeach; ?>
         </div>
     </section>
     <?php endif; ?>

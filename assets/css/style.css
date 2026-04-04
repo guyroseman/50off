@@ -74,6 +74,39 @@ button { font-family: inherit; cursor: pointer; }
     padding: 0 1.5rem;
 }
 
+/* ─── URGENCY TICKER ─────────────────────────────────────────────────────────── */
+.ticker-bar {
+    background: var(--orange);
+    color: #fff;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    overflow: hidden;
+    white-space: nowrap;
+    height: 28px;
+    display: flex;
+    align-items: center;
+}
+.ticker-track {
+    display: inline-flex;
+    gap: 0;
+    animation: tickerScroll 30s linear infinite;
+    will-change: transform;
+}
+.ticker-item {
+    padding: 0 2.5rem;
+    opacity: .95;
+}
+.ticker-item::after {
+    content: '·';
+    margin-left: 2.5rem;
+    opacity: .6;
+}
+@keyframes tickerScroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
 /* ─── HEADER ────────────────────────────────────────────────────────────────── */
 .site-header {
     position: sticky;
@@ -1118,25 +1151,29 @@ button { font-family: inherit; cursor: pointer; }
     50% { box-shadow: 0 0 0 5px rgba(255,107,0,0); }
 }
 
-/* ─── CATEGORY QUICK-JUMP ────────────────────────────────────────────────────── */
-.cat-quick-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: .75rem;
-    margin: 1.5rem 0 2rem;
+/* ─── CATEGORY PILL STRIP ────────────────────────────────────────────────────── */
+.cat-pill-strip {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    overflow-x: auto;
+    padding: .75rem 0 .85rem;
+    margin: .5rem 0 1.5rem;
+    scrollbar-width: none; /* Firefox */
+    -webkit-overflow-scrolling: touch;
 }
-.cat-quick-card {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: .35rem; padding: 1.1rem .75rem;
+.cat-pill-strip::-webkit-scrollbar { display: none; }
+.cat-pill {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .42rem 1rem;
     background: var(--ash); border: 1.5px solid var(--border);
-    border-radius: var(--radius); text-align: center;
-    font-size: .8rem; font-weight: 600; color: var(--ink);
-    transition: all .15s; text-decoration: none;
+    border-radius: 999px;
+    font-size: .8rem; font-weight: 600; color: var(--slate);
+    white-space: nowrap; text-decoration: none;
+    transition: all .15s; flex-shrink: 0;
 }
-.cat-quick-card:hover { background: var(--orange-light); border-color: var(--orange); color: var(--orange); transform: translateY(-2px); box-shadow: var(--shadow); }
-.cat-quick-icon { font-size: 1.75rem; }
-.cat-quick-count { font-size: .68rem; font-weight: 400; color: var(--slate); }
-@media (max-width: 480px) { .cat-quick-grid { grid-template-columns: repeat(3, 1fr); gap: .5rem; } }
+.cat-pill:hover { background: var(--orange-light); border-color: var(--orange); color: var(--orange); }
+.cat-pill.active { background: var(--orange); border-color: var(--orange); color: #fff; }
 
 /* ─── INFINITE SCROLL SENTINEL ───────────────────────────────────────────────── */
 .scroll-loader {

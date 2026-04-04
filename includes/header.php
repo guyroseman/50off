@@ -8,16 +8,16 @@ $stores      = getStores();
 
 $discountTypes = [
     ''           => ['label' => 'All Deals',    'icon' => '✨'],
-    'clearance'  => ['label' => 'Clearance',     'icon' => '🏷️'],
     'electronics'=> ['label' => 'Electronics',   'icon' => '📱'],
-    'kitchen'    => ['label' => 'Kitchen',        'icon' => '🍳'],
     'clothing'   => ['label' => 'Clothing',       'icon' => '👗'],
     'home'       => ['label' => 'Home',           'icon' => '🏠'],
+    'kitchen'    => ['label' => 'Kitchen',        'icon' => '🍳'],
     'toys'       => ['label' => 'Toys',           'icon' => '🧸'],
     'sports'     => ['label' => 'Sports',         'icon' => '⚽'],
     'beauty'     => ['label' => 'Beauty',         'icon' => '💄'],
     'health'     => ['label' => 'Health',         'icon' => '💊'],
-    'books'      => ['label' => 'Books',          'icon' => '📚'],
+    'tools'      => ['label' => 'Tools',          'icon' => '🔧'],
+    'pets'       => ['label' => 'Pets',           'icon' => '🐾'],
 ];
 
 $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
@@ -38,6 +38,28 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
 </head>
 <body>
+
+<!-- ══ URGENCY TICKER ════════════════════════════════════════════════════════ -->
+<div class="ticker-bar" aria-hidden="true">
+    <div class="ticker-track">
+        <?php
+        $tickerItems = [
+            '🔥 New deals added every 3 hours',
+            '✅ Every deal is 50%+ off — guaranteed',
+            '🛒 Amazon • Target • eBay',
+            '⚡ Limited-time prices — act fast',
+            '💰 Save hundreds on top brands',
+            '🔥 New deals added every 3 hours',
+            '✅ Every deal is 50%+ off — guaranteed',
+            '🛒 Amazon • Target • eBay',
+            '⚡ Limited-time prices — act fast',
+            '💰 Save hundreds on top brands',
+        ];
+        foreach ($tickerItems as $item): ?>
+        <span class="ticker-item"><?= $item ?></span>
+        <?php endforeach; ?>
+    </div>
+</div>
 
 <!-- ══ MOBILE DRAWER OVERLAY ═════════════════════════════════════════════════ -->
 <div class="drawer-overlay" id="drawer-overlay"></div>

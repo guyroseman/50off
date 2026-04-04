@@ -111,12 +111,18 @@ class AmazonScraper extends BaseScraper
         ['https://www.amazon.com/s?rh=n%3A3760901%2Cp_8%3A50-&s=discount-rank', 'Health'],
         // Kitchen
         ['https://www.amazon.com/s?rh=n%3A284507%2Cp_8%3A50-&s=discount-rank', 'Kitchen'],
-        // Books
-        ['https://www.amazon.com/s?rh=n%3A283155%2Cp_8%3A50-&s=discount-rank', 'Books'],
         // Tools
         ['https://www.amazon.com/s?rh=n%3A228013%2Cp_8%3A50-&s=discount-rank', 'Tools'],
         // Pet Supplies
         ['https://www.amazon.com/s?rh=n%3A2619533011%2Cp_8%3A50-&s=discount-rank', 'Pets'],
+        // Video Games
+        ['https://www.amazon.com/s?rh=n%3A468642%2Cp_8%3A50-&s=discount-rank', 'Video Games'],
+        // Office Products
+        ['https://www.amazon.com/s?rh=n%3A1064954%2Cp_8%3A50-&s=discount-rank', 'Office'],
+        // Baby
+        ['https://www.amazon.com/s?rh=n%3A165796011%2Cp_8%3A50-&s=discount-rank', 'Baby'],
+        // Automotive
+        ['https://www.amazon.com/s?rh=n%3A15684181%2Cp_8%3A50-&s=discount-rank', 'Automotive'],
     ];
 
     // ── Scrape search result pages across multiple categories ─────────────────

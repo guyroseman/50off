@@ -17,9 +17,11 @@ function getDeals(array $opts = []): array {
         $params[':cat'] = $opts['category'];
     }
     if (!empty($opts['search'])) {
-        $where[] = '(d.title LIKE :q OR d.description LIKE :q2)';
+        $where[] = '(d.title LIKE :q OR d.description LIKE :q2 OR d.store LIKE :q3 OR d.category LIKE :q4)';
         $params[':q']  = '%' . $opts['search'] . '%';
         $params[':q2'] = '%' . $opts['search'] . '%';
+        $params[':q3'] = '%' . $opts['search'] . '%';
+        $params[':q4'] = '%' . $opts['search'] . '%';
     }
     if (!empty($opts['featured'])) {
         $where[] = 'd.is_featured = 1';
@@ -63,7 +65,7 @@ function countDeals(array $opts = []): int {
     $params = [];
     if (!empty($opts['store']))    { $where[] = 'store = :store';    $params[':store'] = $opts['store']; }
     if (!empty($opts['category'])) { $where[] = 'category = :cat';   $params[':cat']   = $opts['category']; }
-    if (!empty($opts['search']))   { $where[] = 'title LIKE :q';    $params[':q']     = '%'.$opts['search'].'%'; }
+    if (!empty($opts['search']))   { $where[] = '(title LIKE :q OR store LIKE :q2 OR category LIKE :q3)'; $params[':q'] = '%'.$opts['search'].'%'; $params[':q2'] = '%'.$opts['search'].'%'; $params[':q3'] = '%'.$opts['search'].'%'; }
     $stmt = $db->prepare("SELECT COUNT(*) FROM deals WHERE " . implode(' AND ', $where));
     $stmt->execute($params);
     return (int)$stmt->fetchColumn();
@@ -88,6 +90,36 @@ function getCategories(): array {
         GROUP BY c.id, c.slug, c.name, c.icon, c.sort_order ORDER BY c.sort_order
     ");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function getRelatedDeals(int $dealId, string $category, string $store, int $limit = 8): array {
+    $db = getDB();
+    // First: same category, any store, excluding current deal
+    $stmt = $db->prepare("
+        SELECT * FROM deals
+        WHERE is_active=1 AND discount_pct>=50 AND id != :id AND category = :cat
+        ORDER BY discount_pct DESC LIMIT :lim
+    ");
+    $stmt->bindValue(':id',  $dealId, PDO::PARAM_INT);
+    $stmt->bindValue(':cat', $category);
+    $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Top up from same store if not enough
+    if (count($rows) < $limit) {
+        $stmt2 = $db->prepare("
+            SELECT * FROM deals
+            WHERE is_active=1 AND discount_pct>=50 AND id != :id AND store = :store AND category != :cat
+            ORDER BY discount_pct DESC LIMIT :lim
+        ");
+        $stmt2->bindValue(':id',    $dealId, PDO::PARAM_INT);
+        $stmt2->bindValue(':store', $store);
+        $stmt2->bindValue(':cat',   $category);
+        $stmt2->bindValue(':lim',   $limit - count($rows), PDO::PARAM_INT);
+        $stmt2->execute();
+        $rows = array_merge($rows, $stmt2->fetchAll(PDO::FETCH_ASSOC));
+    }
+    return $rows;
 }
 
 // ─── Click Tracking ──────────────────────────────────────────────────────────

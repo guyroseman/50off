@@ -62,3 +62,25 @@ jobs:
           else
             echo "No Target deals found — skipping submission"
           fi
+
+      - name: Scrape eBay and push to site
+        run: |
+          echo "=== Scraping eBay Deals ==="
+          JSON=$(SCRAPER_OUTPUT=json php scraper/run.php ebay)
+          EXIT=$?
+
+          COUNT=$(echo "$JSON" | python3 -c "import sys,json; print(len(json.loads(sys.stdin.read())))" 2>/dev/null || echo 0)
+          echo "eBay deals scraped: $COUNT (exit: $EXIT)"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "Submitting eBay deals to 50offsale.com..."
+            RESULT=$(curl -sL --max-time 30 \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.INGEST_TOKEN }}" \
+              -d "$JSON" \
+              "https://50offsale.com/api/ingest.php" 2>/dev/null || echo '{"error":"request failed"}')
+            echo "Result: $RESULT"
+          else
+            echo "No eBay deals found — skipping submission"
+          fi
