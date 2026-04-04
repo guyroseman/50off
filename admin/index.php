@@ -56,10 +56,12 @@ if ($_POST['action'] ?? '' === 'feature_deal') {
     exit;
 }
 if ($_POST['action'] ?? '' === 'run_scraper') {
+    set_time_limit(300);
     ob_start();
     $argv = ['run.php', 'all'];
     include __DIR__ . '/../scraper/run.php';
     $output = ob_get_clean();
+    if (empty($output)) $output = 'Scraper ran but produced no output.';
 }
 
 // Stats
