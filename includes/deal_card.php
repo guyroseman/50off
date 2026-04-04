@@ -113,12 +113,6 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
             <span class="you-save">Save <?= $saved ?></span>
         </div>
 
-        <!-- Verified -->
-        <div class="verified-badge">
-            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-            Verified Discount
-        </div>
-
         <!-- CTA -->
         <a
             href="/go.php?id=<?= $deal['id'] ?>"

@@ -114,6 +114,14 @@ abstract class BaseScraper {
     protected function saveDeal(array $d): bool {
         if (empty($d['title']) || empty($d['product_url'])) return false;
 
+        // Block books/media — we only want physical products
+        $titleLower = strtolower($d['title']);
+        $bookWords = ['paperback', 'hardcover', 'kindle', 'audiobook', ' isbn', 'board book'];
+        foreach ($bookWords as $bw) {
+            if (str_contains($titleLower, $bw)) return false;
+        }
+        if (($d['category'] ?? '') === 'books') return false;
+
         $orig = (float)($d['original_price'] ?? 0);
         $sale = (float)($d['sale_price']     ?? 0);
         $pct  = (int)($d['discount_pct']     ?? 0);

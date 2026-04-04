@@ -497,14 +497,15 @@ button { font-family: inherit; cursor: pointer; }
 /* Image area */
 .deal-card-img-wrap {
     position: relative;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 4 / 3;
     background: var(--ash);
     overflow: hidden;
 }
 .deal-card-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    padding: 10px;
     transition: transform .3s;
 }
 .deal-card:hover .deal-card-img { transform: scale(1.03); }
@@ -982,7 +983,7 @@ button { font-family: inherit; cursor: pointer; }
     transition: color .15s; position: relative; text-decoration: none;
     cursor: pointer;
 }
-.mobile-nav-item svg { width: 22px; height: 22px; stroke-width: 1.8; }
+.mobile-nav-item svg { width: 22px !important; height: 22px !important; min-width: 22px; max-width: 22px; stroke-width: 1.8; flex-shrink: 0; }
 .mobile-nav-item.active { color: var(--orange); }
 .mobile-nav-item.active svg { stroke-width: 2.5; }
 .mobile-nav-badge {
