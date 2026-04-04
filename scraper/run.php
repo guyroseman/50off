@@ -61,6 +61,7 @@ require_once __DIR__ . '/EbayScraper.php';
 require_once __DIR__ . '/WootScraper.php';
 require_once __DIR__ . '/DealNewsScraper.php';
 require_once __DIR__ . '/DealBlogScraper.php';
+require_once __DIR__ . '/ZapposScraper.php';
 
 if ($jsonMode) {
     BaseScraper::enableJsonMode();
@@ -88,9 +89,10 @@ $run = match($requested) {
     'woot'        => ['woot'],
     'dealnews'    => ['dealnews'],
     'dealblogs'   => ['dealblogs'],
+    'zappos'      => ['zappos'],
     'working'     => ['amazon', 'target', 'ebay'],
     'aggregators' => ['dealblogs', 'woot', 'dealnews', 'ebay'],
-    'retail'      => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm'],
+    'retail'      => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos'],
     default       => ['amazon', 'target', 'ebay'],
 };
 
@@ -126,6 +128,7 @@ $scrapers = [
     'woot'       => fn() => new WootScraper(),
     'dealnews'   => fn() => new DealNewsScraper(),
     'dealblogs'  => fn() => new DealBlogScraper(),
+    'zappos'     => fn() => new ZapposScraper(),
 ];
 
 if (!$jsonMode) {
