@@ -159,6 +159,7 @@ function storeLogo(string $store): string {
         'staples'   => '📎',
         'adorama'   => '📷',
         'bhphoto'   => '📸',
+        'zappos'    => '👟',
         'other'     => '🏷️',
     ][$store] ?? '🏷️';
 }
@@ -182,6 +183,7 @@ function storeColor(string $store): string {
         'staples'   => '#CC0000',
         'adorama'   => '#0060A9',
         'bhphoto'   => '#004E98',
+        'zappos'    => '#0068A7',
         'other'     => '#6B7280',
     ][$store] ?? '#6B7280';
 }
