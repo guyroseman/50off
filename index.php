@@ -89,30 +89,6 @@ include 'includes/header.php';
     </div>
 </div>
 
-<!-- ══ CATEGORY PILL STRIP ════════════════════════════════════════════════ -->
-<nav class="cat-pill-strip" aria-label="Browse by category">
-    <a href="/" class="cat-pill <?= (!$store && !$category) ? 'active' : '' ?>">All</a>
-    <?php
-    $catLinks = [
-        'electronics' => ['Electronics', '📱'],
-        'clothing'    => ['Clothing',    '👗'],
-        'home'        => ['Home',        '🏠'],
-        'kitchen'     => ['Kitchen',     '🍳'],
-        'toys'        => ['Toys',        '🧸'],
-        'sports'      => ['Sports',      '⚽'],
-        'beauty'      => ['Beauty',      '💄'],
-        'health'      => ['Health',      '💊'],
-        'tools'       => ['Tools',       '🔧'],
-        'pets'        => ['Pets',        '🐾'],
-    ];
-    foreach ($catLinks as $slug => [$label, $icon]):
-    ?>
-    <a href="/?category=<?= urlencode($slug) ?>" class="cat-pill <?= ($category === $slug) ? 'active' : '' ?>">
-        <?= $icon ?> <?= $label ?>
-    </a>
-    <?php endforeach; ?>
-</nav>
-
 <!-- ══ HOT DEALS CAROUSEL — matches Figma HotDealsCarousel ════════════════ -->
 <?php if ($hotDeals): ?>
 <section class="hot-deals-section">

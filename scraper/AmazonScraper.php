@@ -115,8 +115,6 @@ class AmazonScraper extends BaseScraper
         ['https://www.amazon.com/s?rh=n%3A228013%2Cp_8%3A50-&s=discount-rank', 'Tools'],
         // Pet Supplies
         ['https://www.amazon.com/s?rh=n%3A2619533011%2Cp_8%3A50-&s=discount-rank', 'Pets'],
-        // Video Games
-        ['https://www.amazon.com/s?rh=n%3A468642%2Cp_8%3A50-&s=discount-rank', 'Video Games'],
         // Office Products
         ['https://www.amazon.com/s?rh=n%3A1064954%2Cp_8%3A50-&s=discount-rank', 'Office'],
         // Baby

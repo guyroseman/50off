@@ -1153,14 +1153,18 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ─── CATEGORY PILL STRIP ────────────────────────────────────────────────────── */
+.cat-pill-bar {
+    border-bottom: 1px solid var(--border);
+    background: var(--white);
+}
 .cat-pill-strip {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: .45rem;
     overflow-x: auto;
-    padding: .75rem 0 .85rem;
-    margin: .5rem 0 1.5rem;
-    scrollbar-width: none; /* Firefox */
+    padding: .6rem 0;
+    scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
 }
 .cat-pill-strip::-webkit-scrollbar { display: none; }
@@ -1175,6 +1179,9 @@ button { font-family: inherit; cursor: pointer; }
 }
 .cat-pill:hover { background: var(--orange-light); border-color: var(--orange); color: var(--orange); }
 .cat-pill.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+@media (max-width: 768px) {
+    .cat-pill-strip { justify-content: flex-start; }
+}
 
 /* ─── INFINITE SCROLL SENTINEL ───────────────────────────────────────────────── */
 .scroll-loader {

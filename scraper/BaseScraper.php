@@ -114,13 +114,16 @@ abstract class BaseScraper {
     protected function saveDeal(array $d): bool {
         if (empty($d['title']) || empty($d['product_url'])) return false;
 
-        // Block books/media — we only want physical products
+        // Block books/media/digital — we only want physical products
         $titleLower = strtolower($d['title']);
-        $bookWords = ['paperback', 'hardcover', 'kindle', 'audiobook', ' isbn', 'board book'];
-        foreach ($bookWords as $bw) {
+        $blockWords = ['paperback', 'hardcover', 'kindle', 'audiobook', ' isbn', 'board book',
+                       'blu-ray', 'dvd', '[disc]', 'movie', 'motion picture', 'video game',
+                       'playstation', 'xbox', 'nintendo switch', '[digital code]', '[download]'];
+        foreach ($blockWords as $bw) {
             if (str_contains($titleLower, $bw)) return false;
         }
-        if (($d['category'] ?? '') === 'books') return false;
+        $blockCats = ['books', 'gaming', 'movies'];
+        if (in_array($d['category'] ?? '', $blockCats, true)) return false;
 
         $orig = (float)($d['original_price'] ?? 0);
         $sale = (float)($d['sale_price']     ?? 0);
@@ -270,7 +273,7 @@ abstract class BaseScraper {
             'perfume'=>'beauty','cosmetic'=>'beauty',
             'home'=>'home','garden'=>'home','furniture'=>'home','bedding'=>'home',
             'vacuum'=>'home','mattress'=>'home','pillow'=>'home','rug'=>'home',
-            'video game'=>'gaming','nintendo'=>'gaming','playstation'=>'gaming','xbox'=>'gaming',
+            'video game'=>'gaming','nintendo'=>'gaming','playstation'=>'gaming','xbox'=>'gaming','dvd'=>'movies','blu-ray'=>'movies','movie'=>'movies',
             'office'=>'office','printer'=>'office','staple'=>'office','desk'=>'office',
             'baby'=>'baby','infant'=>'baby','toddler'=>'baby','diaper'=>'baby','stroller'=>'baby',
             'auto'=>'automotive','car '=>'automotive','truck'=>'automotive','motorcycle'=>'automotive',

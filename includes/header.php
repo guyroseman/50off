@@ -204,6 +204,34 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
     </div>
 </header>
 
+<!-- ══ CATEGORY PILL STRIP (all pages) ═════════════════════════════════════ -->
+<nav class="cat-pill-bar" aria-label="Browse by category">
+    <div class="container">
+        <div class="cat-pill-strip">
+            <a href="/" class="cat-pill <?= (!$currentStore && !$currentCat) ? 'active' : '' ?>">All</a>
+            <?php
+            $catPills = [
+                'electronics' => ['Electronics', '📱'],
+                'clothing'    => ['Clothing',    '👗'],
+                'home'        => ['Home',        '🏠'],
+                'kitchen'     => ['Kitchen',     '🍳'],
+                'toys'        => ['Toys',        '🧸'],
+                'sports'      => ['Sports',      '⚽'],
+                'beauty'      => ['Beauty',      '💄'],
+                'health'      => ['Health',      '💊'],
+                'tools'       => ['Tools',       '🔧'],
+                'pets'        => ['Pets',        '🐾'],
+            ];
+            foreach ($catPills as $slug => [$label, $icon]):
+            ?>
+            <a href="/?category=<?= urlencode($slug) ?>" class="cat-pill <?= ($currentCat === $slug) ? 'active' : '' ?>">
+                <?= $icon ?> <?= $label ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</nav>
+
 <!-- ══ SAVED DEALS SLIDE-PANEL ══════════════════════════════════════════════ -->
 <div class="drawer-overlay" id="saved-overlay"></div>
 <aside class="mobile-drawer" id="saved-panel" aria-label="Saved deals">
