@@ -204,20 +204,6 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
     </div>
 </header>
 
-<!-- ══ CATEGORY / DISCOUNT TYPE BAR ═════════════════════════════════════════ -->
-<div class="cat-bar">
-    <div class="cat-bar-inner">
-        <?php foreach($discountTypes as $slug => $info):
-            $isActive = ($slug === '' && !$currentCat) || ($slug !== '' && $currentCat === $slug);
-            $href = $slug === '' ? '/' : '/?category=' . urlencode($slug);
-        ?>
-        <a href="<?= $href ?>" class="cat-chip <?= $isActive ? 'active' : '' ?>">
-            <?= $info['icon'] ?> <?= $info['label'] ?>
-        </a>
-        <?php endforeach; ?>
-    </div>
-</div>
-
 <!-- ══ SAVED DEALS SLIDE-PANEL ══════════════════════════════════════════════ -->
 <div class="drawer-overlay" id="saved-overlay"></div>
 <aside class="mobile-drawer" id="saved-panel" aria-label="Saved deals">
