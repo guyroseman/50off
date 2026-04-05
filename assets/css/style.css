@@ -1360,6 +1360,21 @@ button { font-family: inherit; cursor: pointer; }
     font-size: .85rem; cursor: pointer; padding: .4rem;
 }
 
+/* ─── DETAIL PAGE SAVE BUTTON ─────────────────────────────────────────────────── */
+.deal-save-btn--detail {
+    position: absolute; top: 12px; right: 12px; z-index: 3;
+    width: 40px; height: 40px; font-size: 1.3rem;
+    background: rgba(255,255,255,.9); backdrop-filter: blur(4px);
+    border: none; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    transition: transform .15s, background .15s;
+}
+.deal-save-btn--detail:active { transform: scale(.85); }
+.deal-save-btn--detail.saved { color: #e11d48; background: rgba(255,255,255,.95); }
+.deal-detail-save-text { font-weight: 600; }
+.deal-detail-save-text .saved { color: #e11d48; }
+
 /* ─── MOBILE NAV BADGE ────────────────────────────────────────────────────────── */
 .mobile-nav-badge {
     position: absolute; top: 4px; right: 10px;
