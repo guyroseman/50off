@@ -137,6 +137,11 @@ abstract class BaseScraper {
         }
         if ($pct < 50 || $sale <= 0 || $orig <= $sale) return false;
 
+        // Reject implausible list prices (fake/inflated MSRP)
+        // A real 97% off deal is extremely rare; ratio > 20x almost always means
+        // the retailer set a fictional "compare at" price
+        if ($orig > $sale * 20) return false;
+
         $title = substr(trim(strip_tags($d['title'])), 0, 500);
         $url   = substr($d['product_url'], 0, 1000);
         $aff   = substr($d['affiliate_url'] ?? $url, 0, 1000);

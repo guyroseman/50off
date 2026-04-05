@@ -85,7 +85,7 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
             <a href="/?store=<?= h($deal['store']) ?>" class="deal-store-link" style="color:<?= storeColor($deal['store']) ?>">
                 <?= storeLogo($deal['store']) ?> <?= ucfirst(h($deal['store'])) ?>
             </a>
-            <?php if(!empty($deal['category'])): ?>
+            <?php if(!empty($deal['category']) && $deal['category'] !== 'other'): ?>
             <a href="/?category=<?= h($deal['category']) ?>" class="deal-cat-link">
                 <?= h(ucfirst($deal['category'])) ?>
             </a>

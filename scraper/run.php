@@ -113,7 +113,13 @@ if (!$jsonMode) {
     $exp = $db->prepare("UPDATE deals SET is_active=0
         WHERE scraped_at < NOW() - INTERVAL 3 DAY AND is_featured=0");
     $exp->execute();
-    echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n\n";
+    echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n";
+
+    // Remove implausible list prices (fake inflated MSRPs, e.g. $8 "was $289")
+    $fakeExp = $db->prepare("UPDATE deals SET is_active=0
+        WHERE is_active=1 AND original_price > sale_price * 20");
+    $fakeExp->execute();
+    echo "✓ Fake prices: {$fakeExp->rowCount()} implausible list-price deals deactivated\n\n";
 }
 
 // ── Scraper map ───────────────────────────────────────────────────────────────
