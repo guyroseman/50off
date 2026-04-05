@@ -261,11 +261,17 @@ class SixPmScraper extends BaseScraper
                 $productUrl = "https://www.6pm.com/product/{$productId}/{$slug}";
             }
             if (!$productUrl) continue;
+            // Strip /color/NNN suffix so all color variants dedup to one canonical URL
+            $productUrl = preg_replace('#/color/\d+#', '', $productUrl);
+            // Also strip tracking query params
+            $productUrl = preg_replace('/[?&]pf_rd_[^&]+/', '', $productUrl);
+            $productUrl = rtrim($productUrl, '?&');
 
             // Rating
             $rating      = isset($prod['reviewAvgRating'])  ? (float)$prod['reviewAvgRating']  : null;
             $reviewCount = (int)($prod['reviewCount'] ?? $prod['numReviews'] ?? 0);
 
+            $productType = $prod['productTypeFacet'] ?? $prod['productType'] ?? '';
             if ($this->saveDeal([
                 'title'          => $title,
                 'original_price' => $original,
@@ -274,7 +280,7 @@ class SixPmScraper extends BaseScraper
                 'image_url'      => $imageUrl,
                 'product_url'    => $productUrl,
                 'affiliate_url'  => $productUrl,
-                'category'       => $this->mapCategory($title),
+                'category'       => $this->mapFashionCategory($productType, $title),
                 'rating'         => $rating,
                 'review_count'   => $reviewCount,
             ])) {
@@ -283,6 +289,7 @@ class SixPmScraper extends BaseScraper
         }
         return $saved;
     }
+
 
     // ── HTML product tile fallback ────────────────────────────────────────────
     private function parseHtmlTiles(string $html): int

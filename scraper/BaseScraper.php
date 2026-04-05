@@ -254,6 +254,34 @@ abstract class BaseScraper {
         return new \DOMXPath($dom);
     }
 
+    // ── Fashion-specific category mapper (6pm / Zappos) ──────────────────────
+    // Uses productType field for accurate classification (sport shoe → sports, etc.)
+    protected function mapFashionCategory(string $productType, string $title): string
+    {
+        $type = strtolower(trim($productType));
+        // Sport/athletic footwear
+        if (preg_match('/athletic|running|training|sport|basketball|soccer|cycling|hiking|trail|cross.train/', $type)) {
+            return 'sports';
+        }
+        // General footwear
+        if (preg_match('/shoe|boot|sandal|sneaker|loafer|flat|heel|wedge|clog|slipper|mule|oxford|pump/', $type)) {
+            return 'clothing';
+        }
+        // Apparel
+        if (preg_match('/clothing|apparel|top|shirt|pant|dress|jacket|coat|sweater|hoodie|shorts|skirt|suit|swimwear|underwear|sock|bra|legging/', $type)) {
+            return 'clothing';
+        }
+        // Bags / accessories
+        if (preg_match('/handbag|bag|purse|wallet|luggage|backpack|tote|clutch|satchel|briefcase/', $type)) {
+            return 'clothing';
+        }
+        if (preg_match('/watch|jewelry|sunglasses|accessory|accessories|belt|scarf|hat|glove/', $type)) {
+            return 'beauty';
+        }
+        // Fall through to title-based mapping
+        return $this->mapCategory($title);
+    }
+
     protected function mapCategory(string $raw): string {
         $raw = strtolower($raw);
         $map = [

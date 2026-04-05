@@ -124,8 +124,11 @@ class ZapposScraper extends BaseScraper
             $relUrl = $prod['productUrl'] ?? null;
             if (!$relUrl) continue;
             $productUrl = str_starts_with($relUrl, 'http') ? $relUrl : 'https://www.' . $domain . $relUrl;
-            // Strip tracking params, keep clean URL
-            $productUrl = preg_replace('/\?pf_rd_[^&]+(&pf_rd_[^&]+)*/', '', $productUrl);
+            // Deduplicate: strip /color/NNN so all color variants map to one canonical URL
+            $productUrl = preg_replace('#/color/\d+#', '', $productUrl);
+            // Strip tracking params
+            $productUrl = preg_replace('/[?&]pf_rd_[^&]+/', '', $productUrl);
+            $productUrl = rtrim($productUrl, '?&');
 
             $rating      = isset($prod['reviewAvgRating'])  ? (float)$prod['reviewAvgRating']  : null;
             $reviewCount = (int)($prod['reviewCount'] ?? $prod['numReviews'] ?? 0);
@@ -138,7 +141,7 @@ class ZapposScraper extends BaseScraper
                 'image_url'      => $imageUrl,
                 'product_url'    => $productUrl,
                 'affiliate_url'  => $productUrl,
-                'category'       => $this->mapCategory($title),
+                'category'       => $this->mapFashionCategory($prod['productType'] ?? $prod['productTypeFacet'] ?? '', $title),
                 'rating'         => $rating,
                 'review_count'   => $reviewCount,
             ])) $saved++;

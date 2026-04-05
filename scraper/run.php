@@ -33,6 +33,8 @@
  *    php scraper/run.php ebay         # eBay only
  *    php scraper/run.php aggregators  # SlickDeals + Woot + DealNews + eBay
  *    php scraper/run.php retail       # Amazon + Target + BestBuy + Costco + HD + 6pm
+ *    php scraper/run.php zappos       # Zappos only
+ *    php scraper/run.php all          # every scraper
  *    php scraper/run.php seed         # seed data only (no network)
  *
  *  CRON (every 3 hours — recommended):
@@ -93,7 +95,8 @@ $run = match($requested) {
     'working'     => ['amazon', 'target', 'ebay'],
     'aggregators' => ['dealblogs', 'woot', 'dealnews', 'ebay'],
     'retail'      => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos'],
-    default       => ['amazon', 'target', 'ebay'],
+    'all'         => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'walmart', 'dealblogs', 'woot', 'dealnews', 'ebay'],
+    default       => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'ebay'],
 };
 
 // ── DB setup (DB mode only) ───────────────────────────────────────────────────
