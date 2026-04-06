@@ -1114,14 +1114,14 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ─── WISHLIST / SAVE BUTTON ─────────────────────────────────────────────────── */
 .deal-save-btn {
-    position: absolute; top: 10px; left: 10px;
-    width: 30px; height: 30px; border-radius: 50%;
-    border: 1.5px solid rgba(255,255,255,.7);
-    background: rgba(255,255,255,.88);
+    position: absolute; bottom: 8px; right: 8px;
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,.8);
+    background: rgba(255,255,255,.9);
     display: flex; align-items: center; justify-content: center;
     z-index: 3; color: var(--slate); font-size: .95rem;
-    cursor: pointer; transition: all .2s;
-    backdrop-filter: blur(4px); box-shadow: var(--shadow-xs);
+    cursor: pointer; transition: all var(--duration-fast) var(--ease-out);
+    backdrop-filter: blur(6px); box-shadow: 0 2px 8px rgba(0,0,0,.1);
 }
 .deal-save-btn:hover { color: var(--red); border-color: var(--red-light); }
 .deal-save-btn.saved { color: var(--red); border-color: var(--red); background: var(--red-light); }

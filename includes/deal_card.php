@@ -51,7 +51,7 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
         <!-- Percent badge — top-left -->
         <span class="pct-badge" style="left:10px;right:auto">-<?= $pct ?>%</span>
 
-        <!-- Save/wishlist heart button -->
+        <!-- Save/wishlist heart button — top-right, below sale badge -->
         <button
             class="deal-save-btn"
             data-id="<?= (int)$deal['id'] ?>"
@@ -62,7 +62,6 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
             data-link="<?= h($link) ?>"
             aria-label="Save deal"
             onclick="toggleSave(this, event)"
-            style="bottom:auto;top:auto;bottom:8px;left:8px"
         >♡</button>
 
         <?php if($deal['is_featured']): ?>

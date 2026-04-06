@@ -53,21 +53,6 @@ $badgeClass = match(true) {
 };
 ?>
             <span class="discount-badge <?= $badgeClass ?> deal-detail-badge">-<?= $pct ?>%</span>
-
-            <!-- Save heart button on image -->
-            <button
-                class="deal-save-btn deal-save-btn--detail"
-                id="detail-save-btn"
-                data-id="<?= (int)$deal['id'] ?>"
-                data-title="<?= h(mb_substr($deal['title'], 0, 60)) ?>"
-                data-price="<?= h(number_format((float)$deal['sale_price'], 2)) ?>"
-                data-pct="<?= $pct ?>"
-                data-img="<?= h($dealImgSrc) ?>"
-                data-link="/deal.php?id=<?= $deal['id'] ?>"
-                aria-label="Save deal"
-                onclick="toggleSave(this, event)"
-            >♡</button>
-
             <img
                 src="<?= h($dealImgSrc) ?>"
                 alt="<?= h($deal['title']) ?>"
@@ -125,8 +110,14 @@ $badgeClass = match(true) {
             <div class="deal-actions">
                 <button
                     class="btn-secondary deal-detail-save-text"
-                    id="detail-save-text-btn"
-                    onclick="toggleSave(document.getElementById('detail-save-btn'), event)"
+                    id="detail-save-btn"
+                    data-id="<?= (int)$deal['id'] ?>"
+                    data-title="<?= h(mb_substr($deal['title'], 0, 60)) ?>"
+                    data-price="<?= h(number_format((float)$deal['sale_price'], 2)) ?>"
+                    data-pct="<?= $pct ?>"
+                    data-img="<?= h($dealImgSrc) ?>"
+                    data-link="/deal.php?id=<?= $deal['id'] ?>"
+                    onclick="toggleSave(this, event)"
                 >
                     <span id="detail-save-label">♡ Save Deal</span>
                 </button>
@@ -176,12 +167,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!btn) return;
     var id = btn.dataset.id;
     if (saved[id]) {
-        btn.textContent = '♥';
         btn.classList.add('saved');
         if (label) label.textContent = '♥ Saved';
     }
 
-    // Watch for changes (heart toggled)
+    // Watch for changes (heart toggled by main.js)
     var observer = new MutationObserver(function() {
         var isSaved = btn.classList.contains('saved');
         if (label) label.textContent = isSaved ? '♥ Saved' : '♡ Save Deal';
