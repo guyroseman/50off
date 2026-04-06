@@ -62,13 +62,12 @@ match($action) {
         try {
             $db->prepare("INSERT IGNORE INTO saved_deals (subscriber_id, deal_id) VALUES (?, ?)")
                ->execute([$user['id'], $dealId]);
-        } catch (\PDOException) {}
-        $count = (int)$db->prepare("SELECT COUNT(*) FROM saved_deals WHERE subscriber_id = ?")
-                        ->execute([$user['id']]) ? $db->query("SELECT FOUND_ROWS()")->fetchColumn() : 0;
+        } catch (\PDOException $e) {
+            json_out(['ok' => false, 'error' => 'Could not save: ' . $e->getMessage()], 500);
+        }
         $stmt = $db->prepare("SELECT COUNT(*) FROM saved_deals WHERE subscriber_id = ?");
         $stmt->execute([$user['id']]);
-        $count = (int)$stmt->fetchColumn();
-        json_out(['ok' => true, 'saved_count' => $count]);
+        json_out(['ok' => true, 'saved_count' => (int)$stmt->fetchColumn()]);
     })(),
 
     'unsave' => (function() use ($body) {

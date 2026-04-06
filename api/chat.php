@@ -24,7 +24,7 @@ require_once __DIR__ . '/../includes/db.php';
 define('CLAUDE_API_KEY', getenv('CLAUDE_API_KEY') ?: '');
 define('CLAUDE_MODEL', 'claude-haiku-4-5-20251001'); // fast + cheap
 
-function json_out(array $data, int $code = 200): never {
+function json_out(array $data, int $code = 200) {
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_SLASHES);
     exit;
@@ -51,7 +51,7 @@ try {
     // ── Search deals DB for context ───────────────────────────────────────────
     $db = getDB();
     $keywords = preg_split('/\s+/', strtolower($message));
-    $keywords = array_filter($keywords, fn($w) => strlen($w) >= 3);
+    $keywords = array_filter($keywords, function($w) { return strlen($w) >= 3; });
 
     // Build search query
     $where = ['is_active = 1', 'discount_pct >= 50'];
@@ -96,15 +96,13 @@ try {
     // ── If no API key, use simple keyword-based response ──────────────────────
     if (!CLAUDE_API_KEY) {
         $reply = buildSimpleResponse($message, $matchingDeals, $stats);
-        json_out([
-            'reply' => $reply,
-            'deals' => array_map(fn($d) => [
-                'id' => $d['id'], 'title' => $d['title'],
+        $dealCards = [];
+        foreach (array_slice($matchingDeals, 0, 5) as $d) {
+            $dealCards[] = ['id' => $d['id'], 'title' => $d['title'],
                 'price' => '$' . number_format((float)$d['sale_price'], 2),
-                'pct' => $d['discount_pct'] . '%',
-                'store' => $d['store'],
-            ], array_slice($matchingDeals, 0, 5)),
-        ]);
+                'pct' => $d['discount_pct'] . '%', 'store' => $d['store']];
+        }
+        json_out(['reply' => $reply, 'deals' => $dealCards]);
     }
 
     // ── Call Claude API ───────────────────────────────────────────────────────
