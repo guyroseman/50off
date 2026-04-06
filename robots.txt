@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /scraper/
+Disallow: /includes/
+Disallow: /login.php
+Disallow: /signup.php
+Disallow: /forgot-password.php
+Disallow: /reset-password.php
+
+Sitemap: https://50offsale.com/sitemap.xml

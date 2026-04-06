@@ -1,4 +1,9 @@
 <?php
+require_once __DIR__ . '/auth.php';
+initSession();
+$_currentUser = currentUser();
+$_isLoggedIn  = (bool)$_currentUser;
+
 $siteName    = '50OFF';
 $currentStore= getParam('store');
 $currentCat  = getParam('category');
@@ -27,15 +32,43 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?php
+    $_canonicalUrl = 'https://50offsale.com' . strtok($_SERVER['REQUEST_URI'] ?? '/', '?');
+    $_metaDesc = isset($pageTitle) && $pageTitle !== 'Top 50%+ Off Deals Today'
+        ? h($pageTitle) . ' — verified 50%+ off deals updated every 3 hours.'
+        : 'Only 50%+ off deals from Amazon, Target, eBay &amp; 6pm. Verified discounts updated every 3 hours.';
+    ?>
     <title><?= isset($pageTitle) ? h($pageTitle) . ' — ' : '' ?>50OFF — Don't search for products, search for discounts</title>
-    <meta name="description" content="Only 50%+ off deals from Amazon, Target &amp; eBay. Verified discounts updated every 3 hours.">
-    <meta property="og:title" content="50OFF — Only 50%+ Off Deals">
-    <meta property="og:description" content="50% off or more from Amazon, Target &amp; eBay. Updated every 3 hours.">
+    <meta name="description" content="<?= $_metaDesc ?>">
+    <link rel="canonical" href="<?= $_canonicalUrl ?>">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?= $_canonicalUrl ?>">
+    <meta property="og:title" content="<?= isset($pageTitle) ? h($pageTitle) . ' — 50OFF' : '50OFF — Only 50%+ Off Deals' ?>">
+    <meta property="og:description" content="<?= $_metaDesc ?>">
+    <meta property="og:site_name" content="50OFF">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="<?= isset($pageTitle) ? h($pageTitle) : '50OFF' ?>">
+    <meta name="twitter:description" content="<?= $_metaDesc ?>">
+    <meta name="geo.region" content="US">
+    <meta name="geo.placename" content="United States">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+    <!-- JSON-LD: WebSite schema for sitelinks search -->
+    <script type="application/ld+json"><?= json_encode([
+        '@context' => 'https://schema.org',
+        '@type' => 'WebSite',
+        'name' => '50OFF',
+        'url' => 'https://50offsale.com',
+        'description' => 'Only 50%+ off deals from top US retailers',
+        'potentialAction' => [
+            '@type' => 'SearchAction',
+            'target' => ['@type' => 'EntryPoint', 'urlTemplate' => 'https://50offsale.com/search.php?q={search_term_string}'],
+            'query-input' => 'required name=search_term_string',
+        ],
+    ], JSON_UNESCAPED_SLASHES) ?></script>
     <!-- Google Analytics (GA4) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-N17QKBTL2V"></script>
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-N17QKBTL2V');</script>
@@ -190,11 +223,16 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
                 <a href="/blog/" class="store-pill store-pill--blog <?= $isBlog ? 'active' : '' ?>">✍️ Blog</a>
             </nav>
 
-            <!-- Saved deals button (desktop) -->
-            <button class="header-saved-btn" id="header-saved-btn" onclick="openSavedPanel()" aria-label="Saved deals">
-                ♡ Saved
-                <span class="header-saved-count" id="header-saved-count"></span>
-            </button>
+            <!-- Auth / account button (desktop) -->
+            <?php if ($_isLoggedIn): ?>
+            <a href="/account.php" class="header-saved-btn" aria-label="My account">
+                👤 <?= h($_currentUser['name'] ?: 'Account') ?>
+            </a>
+            <?php else: ?>
+            <a href="/login.php" class="header-saved-btn" aria-label="Log in">
+                Log In
+            </a>
+            <?php endif; ?>
 
             <!-- Mobile hamburger -->
             <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false">

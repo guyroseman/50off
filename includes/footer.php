@@ -60,129 +60,49 @@
     </div>
 </footer>
 
-<!-- ── Email capture modal (triggered after first save) ─────────────────────── -->
-<div id="email-save-modal" aria-hidden="true">
-    <div id="email-save-backdrop"></div>
-    <div id="email-save-sheet">
-        <button id="email-save-close" aria-label="Close">✕</button>
-        <div id="email-save-icon">♥</div>
-        <h2>Deal saved!</h2>
-        <p>Enter your email to keep your list &amp; get alerts when prices drop.<br><strong>No password. Always free.</strong></p>
-        <div id="email-save-preview"></div>
-        <form id="email-save-form">
-            <input type="email" id="email-save-input" placeholder="your@email.com" autocomplete="email" inputmode="email">
-            <button type="submit" id="email-save-submit">Keep My List →</button>
-        </form>
-        <button id="email-save-skip">No thanks, save locally only</button>
-        <p class="email-save-fine">We'll email you a link to your personal deals list. Unsubscribe anytime.</p>
-    </div>
-</div>
-
 <script src="/assets/js/main.js"></script>
 
-<!-- ── Email capture enhancement — runs AFTER main.js ──────────────────────── -->
+<!-- ── Auth-gated save: redirect to signup if not logged in ──────────────── -->
 <script>
+window.__isLoggedIn = <?= $_isLoggedIn ? 'true' : 'false' ?>;
 (function() {
-    const TOKEN_KEY = '50off_token';
-    const EMAIL_KEY = '50off_email';
-    let _pendingDealId = null;
-
-    // ── Patch main.js toggleSave to trigger email modal on first save ─────────
-    if (typeof window.toggleSave !== 'function' || typeof window.getSaved !== 'function') return;
+    if (typeof window.toggleSave !== 'function') return;
     const _origToggleSave = window.toggleSave;
+
     window.toggleSave = function(btn, event) {
-        const id      = btn.dataset.id;
-        const saved   = getSaved(); // main.js function
-        const wasNew  = !saved[id];
+        event.preventDefault();
+        event.stopPropagation();
 
-        _origToggleSave(btn, event); // run original (localStorage + panel + toast)
-
-        if (wasNew && !localStorage.getItem(EMAIL_KEY)) {
-            // First save, no email yet — prompt after short delay
-            _pendingDealId = id;
-            setTimeout(() => showEmailModal(btn.dataset), 700);
-        } else if (wasNew && localStorage.getItem(EMAIL_KEY)) {
-            // Already has email — silently sync to server
-            syncToServer(localStorage.getItem(EMAIL_KEY), id);
+        if (!window.__isLoggedIn) {
+            // Not logged in — redirect to signup with return URL
+            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = '/signup.php?redirect=' + returnUrl;
+            return;
         }
-    };
 
-    // ── Email modal ───────────────────────────────────────────────────────────
-    const modal    = document.getElementById('email-save-modal');
-    const backdrop = document.getElementById('email-save-backdrop');
-    const closeBtn = document.getElementById('email-save-close');
-    const skipBtn  = document.getElementById('email-save-skip');
-    const form     = document.getElementById('email-save-form');
+        const id    = btn.dataset.id;
+        const saved = getSaved();
+        const isNew = !saved[id];
 
-    function showEmailModal(dealData) {
-        if (!modal) return;
-        const preview = document.getElementById('email-save-preview');
-        if (dealData && dealData.title && preview) {
-            preview.innerHTML = `<div class="save-deal-chip">
-                <img src="${dealData.img||''}" onerror="this.style.display='none'" alt="" width="48" height="48">
-                <span><strong>${dealData.pct}% OFF</strong> — ${dealData.title.slice(0,52)}…</span>
-            </div>`;
-        }
-        modal.style.display = 'block';
-        requestAnimationFrame(() => modal.classList.add('open'));
-        document.getElementById('email-save-input').focus();
-        document.body.style.overflow = 'hidden';
-    }
+        // Run original localStorage save
+        _origToggleSave(btn, event);
 
-    function hideEmailModal() {
-        modal?.classList.remove('open');
-        setTimeout(() => { if (modal) modal.style.display = 'none'; }, 280);
-        document.body.style.overflow = '';
-    }
-
-    backdrop?.addEventListener('click', hideEmailModal);
-    closeBtn?.addEventListener('click', hideEmailModal);
-    skipBtn?.addEventListener('click',  hideEmailModal);
-
-    form?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('email-save-input').value.trim();
-        if (!email || !_pendingDealId) return;
-        const btn = document.getElementById('email-save-submit');
-        btn.disabled = true; btn.textContent = 'Saving…';
-        await syncToServer(email, _pendingDealId, true);
-        btn.disabled = false; btn.textContent = 'Keep My List →';
-    });
-
-    async function syncToServer(email, dealId, fromForm = false) {
-        try {
-            const res  = await fetch('/api/save.php', {
+        // Sync to server
+        if (isNew) {
+            fetch('/api/auth.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, deal_id: parseInt(dealId) }),
-            });
-            const data = await res.json();
-            if (!data.ok) return;
-            localStorage.setItem(TOKEN_KEY, data.token);
-            localStorage.setItem(EMAIL_KEY, email);
-            if (fromForm) {
-                hideEmailModal();
-                const token = encodeURIComponent(data.token);
-                showToast(`♥ List saved! <a href="/saved.php?token=${token}" style="color:#fff;text-decoration:underline">View it →</a>`, 'save', 5000);
-            }
-        } catch {}
-    }
-
-    // ── Sync saved count badge on mobile nav ──────────────────────────────────
-    // main.js uses 'header-saved-count' and '50off_saved_v1' key
-    // mobile-saved-count is in our bottom nav — keep it in sync
-    const origUpdateCount = window.updateSavedCount;
-    if (typeof origUpdateCount === 'function') {
-        window.updateSavedCount = function() {
-            origUpdateCount();
-            const count = Object.keys(getSaved()).length;
-            const badge = document.getElementById('mobile-saved-count');
-            if (badge) {
-                badge.textContent = count > 0 ? count : '';
-                badge.style.display = count > 0 ? 'flex' : 'none';
-            }
-        };
-    }
+                body: JSON.stringify({ action: 'save', deal_id: parseInt(id) }),
+            }).catch(() => {});
+        } else {
+            fetch('/api/auth.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'unsave', deal_id: parseInt(id) }),
+            }).catch(() => {});
+        }
+    };
+})();
 })();
 </script>
 
@@ -212,11 +132,10 @@ $isCatPage    = !empty($_GET['category']);
             Browse
         </button>
 
-        <button class="mobile-nav-item" onclick="openSavedPanel()" aria-label="Saved deals">
-            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            <span class="mobile-nav-badge" id="mobile-saved-count" style="display:none"></span>
-            Saved
-        </button>
+        <a href="<?= $_isLoggedIn ? '/account.php' : '/login.php' ?>" class="mobile-nav-item" aria-label="<?= $_isLoggedIn ? 'Account' : 'Log in' ?>">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <?= $_isLoggedIn ? 'Account' : 'Log In' ?>
+        </a>
 
         <a href="/blog/" class="mobile-nav-item <?= $isBlogPage ? 'active' : '' ?>" aria-label="Blog">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>

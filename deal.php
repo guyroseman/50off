@@ -30,7 +30,32 @@ $pct         = (int)$deal['discount_pct'];
 $hasCat      = !empty($deal['category']) && $deal['category'] !== 'other';
 $catLabel    = $hasCat ? ucfirst($deal['category']) : '';
 
+// JSON-LD Product schema for SEO
+$jsonLd = [
+    '@context' => 'https://schema.org',
+    '@type' => 'Product',
+    'name' => $deal['title'],
+    'url' => 'https://50offsale.com/deal.php?id=' . $deal['id'],
+    'offers' => [
+        '@type' => 'Offer',
+        'price' => number_format((float)$deal['sale_price'], 2, '.', ''),
+        'priceCurrency' => 'USD',
+        'availability' => 'https://schema.org/InStock',
+        'seller' => ['@type' => 'Organization', 'name' => ucfirst($deal['store'])],
+    ],
+];
+if (!empty($deal['image_url'])) $jsonLd['image'] = $deal['image_url'];
+if (!empty($deal['rating'])) {
+    $jsonLd['aggregateRating'] = [
+        '@type' => 'AggregateRating',
+        'ratingValue' => (float)$deal['rating'],
+        'reviewCount' => max(1, (int)$deal['review_count']),
+    ];
+}
+$pageJsonLd = '<script type="application/ld+json">' . json_encode($jsonLd, JSON_UNESCAPED_SLASHES) . '</script>';
+
 include 'includes/header.php';
+echo $pageJsonLd;
 ?>
 
 <div class="container">
