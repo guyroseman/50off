@@ -241,6 +241,22 @@ if (hotScroll) {
     update();
 })();
 
+// ─── Header scroll shadow ────────────────────────────────────────────────────
+(function headerScroll() {
+    const header = document.querySelector('.site-header');
+    if (!header) return;
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+        if (!ticking) {
+            requestAnimationFrame(() => {
+                header.classList.toggle('scrolled', window.scrollY > 10);
+                ticking = false;
+            });
+            ticking = true;
+        }
+    }, { passive: true });
+})();
+
 // ─── Initialize ───────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     syncAllHearts();

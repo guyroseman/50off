@@ -123,14 +123,18 @@ button { font-family: inherit; cursor: pointer; }
     backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
     box-shadow: var(--shadow-xs);
+    transition: box-shadow .3s, padding .3s;
+}
+.site-header.scrolled {
+    box-shadow: 0 2px 16px rgba(0,0,0,.08);
 }
 
 .header-inner {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    height: 64px;
-    flex-wrap: wrap;
+    gap: 1rem;
+    height: 60px;
+    flex-wrap: nowrap;
 }
 
 /* Logo — matches Figma DH logo style */
@@ -1161,20 +1165,14 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ─── HEADER SAVED BUTTON ────────────────────────────────────────────────────── */
 .header-saved-btn {
-    display: flex; align-items: center; gap: .35rem;
-    padding: .3rem .85rem; border-radius: var(--radius-xl);
-    font-size: .8rem; font-weight: 500; color: var(--slate);
-    border: 1.5px solid var(--border); background: var(--white);
-    cursor: pointer; transition: all .15s; white-space: nowrap;
-    position: relative; flex-shrink: 0;
+    display: flex; align-items: center; gap: .4rem;
+    padding: .4rem .9rem; border-radius: var(--radius-xl);
+    font-size: .78rem; font-weight: 600; color: var(--white);
+    background: var(--orange); border: none;
+    cursor: pointer; transition: all var(--duration-fast);
+    white-space: nowrap; flex-shrink: 0; text-decoration: none;
 }
-.header-saved-btn:hover { border-color: var(--red); color: var(--red); }
-.header-saved-count {
-    background: var(--red); color: #fff; font-size: .62rem; font-weight: 700;
-    padding: 0 .35rem; border-radius: 99px; min-width: 16px;
-    height: 16px; display: none; align-items: center; justify-content: center;
-}
-.header-saved-count.show { display: flex; }
+.header-saved-btn:hover { background: var(--orange-hover); box-shadow: 0 2px 8px rgba(255,107,0,.3); }
 
 /* ─── TRENDING / FLASH BADGES ────────────────────────────────────────────────── */
 .badge-trending { background: linear-gradient(135deg, #F59E0B, #EF4444); color: #fff; }
