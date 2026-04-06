@@ -318,12 +318,31 @@ class AmazonScraper extends BaseScraper
                 $reviewCount = (int)str_replace([',', '.', ' '], '', $reviewNode->textContent);
             }
 
+            // ── Description (feature bullets) ───────────────────────────────
+            $desc = '';
+            $descNodes = $xpath->query('.//span[contains(@class,"a-text-normal") and not(ancestor::h2)]', $result);
+            if ($descNodes && $descNodes->length > 0) {
+                foreach ($descNodes as $dn) {
+                    $t = trim($dn->textContent);
+                    if (strlen($t) > 30 && strlen($t) < 500 && $t !== $title) { $desc = $t; break; }
+                }
+            }
+            // Also try the truncated description under the title
+            if (!$desc) {
+                $descNode2 = $xpath->query('.//div[contains(@class,"a-row")]//span[contains(@class,"a-size-base") and string-length(text()) > 40]', $result);
+                foreach ($descNode2 ?? [] as $dn) {
+                    $t = trim($dn->textContent);
+                    if (strlen($t) > 40 && $t !== $title && !str_contains($t, '$')) { $desc = $t; break; }
+                }
+            }
+
             // ── URLs ─────────────────────────────────────────────────────────
             $productUrl   = "https://www.amazon.com/dp/{$asin}";
             $affiliateUrl = "https://www.amazon.com/dp/{$asin}?tag={$this->tag}";
 
             if ($this->saveDeal([
                 'title'          => $title,
+                'description'    => $desc ?: null,
                 'original_price' => $original,
                 'sale_price'     => $sale,
                 'discount_pct'   => $pct,
@@ -479,11 +498,16 @@ class AmazonScraper extends BaseScraper
         $productUrl   = 'https://www.amazon.com' . $relPath;
         $affiliateUrl = $productUrl . (str_contains($productUrl, '?') ? '&' : '?') . 'tag=' . $this->tag;
 
+        // Description from widget data
+        $desc = $prod['description'] ?? $prod['shortDescription'] ?? null;
+        if ($desc) $desc = trim(html_entity_decode(strip_tags($desc), ENT_QUOTES, 'UTF-8'));
+
         // Category
         $catRaw = $prod['productCategory']['displayName'] ?? '';
 
         return $this->saveDeal([
             'title'          => $title,
+            'description'    => $desc,
             'original_price' => $original,
             'sale_price'     => $sale,
             'discount_pct'   => $pct,

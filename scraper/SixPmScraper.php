@@ -282,8 +282,16 @@ class SixPmScraper extends BaseScraper
             $reviewCount = (int)($prod['reviewCount'] ?? $prod['numReviews'] ?? 0);
 
             $productType = $prod['productTypeFacet'] ?? $prod['productType'] ?? '';
+            $color = $prod['color'] ?? $prod['colorName'] ?? '';
+            $desc  = trim(implode('. ', array_filter([
+                $brand ? "By {$brand}" : '',
+                $productType ?: '',
+                $color ? "Color: {$color}" : '',
+                !empty($prod['productRating']) ? "Rated {$prod['productRating']}/5" : '',
+            ])));
             if ($this->saveDeal([
                 'title'          => $title,
+                'description'    => $desc ?: null,
                 'original_price' => $original,
                 'sale_price'     => $sale,
                 'discount_pct'   => $pct,

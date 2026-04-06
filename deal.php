@@ -44,7 +44,9 @@ $jsonLd = [
         'seller' => ['@type' => 'Organization', 'name' => ucfirst($deal['store'])],
     ],
 ];
+if (!empty($deal['description'])) $jsonLd['description'] = $deal['description'];
 if (!empty($deal['image_url'])) $jsonLd['image'] = $deal['image_url'];
+if (!empty($deal['store'])) $jsonLd['brand'] = ['@type' => 'Brand', 'name' => ucfirst($deal['store'])];
 if (!empty($deal['rating'])) {
     $jsonLd['aggregateRating'] = [
         '@type' => 'AggregateRating',
