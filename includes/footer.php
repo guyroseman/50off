@@ -60,50 +60,107 @@
     </div>
 </footer>
 
+<!-- ══ AI DEAL ASSISTANT CHAT WIDGET ════════════════════════════════════════ -->
+<div id="chat-widget">
+    <button id="chat-fab" onclick="toggleChat()" aria-label="Deal Assistant">
+        <svg id="chat-fab-icon" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <svg id="chat-fab-close" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24" style="display:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div id="chat-panel" style="display:none">
+        <div id="chat-header">
+            <span>🤖 Deal Assistant</span>
+            <button onclick="toggleChat()" aria-label="Close">✕</button>
+        </div>
+        <div id="chat-messages">
+            <div class="chat-msg chat-bot">
+                Hey! I'm your deal assistant. Ask me anything — "find me shoe deals", "cheapest electronics", or "what's trending today?" 🔥
+            </div>
+        </div>
+        <div id="chat-suggestions">
+            <button onclick="sendChat('Show me the best deals today')">Best deals today</button>
+            <button onclick="sendChat('Find shoe deals')">Shoe deals</button>
+            <button onclick="sendChat('Cheapest electronics')">Electronics</button>
+        </div>
+        <form id="chat-form" onsubmit="handleChat(event)">
+            <input type="text" id="chat-input" placeholder="Ask about deals…" autocomplete="off" maxlength="200">
+            <button type="submit" id="chat-send">→</button>
+        </form>
+    </div>
+</div>
+
 <script src="/assets/js/main.js"></script>
 
-<!-- ── Auth-gated save: redirect to signup if not logged in ──────────────── -->
+<!-- Chat widget JS -->
 <script>
-window.__isLoggedIn = <?= $_isLoggedIn ? 'true' : 'false' ?>;
-(function() {
-    if (typeof window.toggleSave !== 'function') return;
-    const _origToggleSave = window.toggleSave;
+function toggleChat() {
+    const panel = document.getElementById('chat-panel');
+    const icon  = document.getElementById('chat-fab-icon');
+    const close = document.getElementById('chat-fab-close');
+    const open  = panel.style.display === 'none';
+    panel.style.display = open ? 'flex' : 'none';
+    icon.style.display  = open ? 'none' : '';
+    close.style.display = open ? '' : 'none';
+    if (open) document.getElementById('chat-input').focus();
+}
 
-    window.toggleSave = function(btn, event) {
-        event.preventDefault();
-        event.stopPropagation();
+function handleChat(e) {
+    e.preventDefault();
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    sendChat(msg);
+}
 
-        if (!window.__isLoggedIn) {
-            // Not logged in — redirect to signup with return URL
-            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-            window.location.href = '/signup.php?redirect=' + returnUrl;
-            return;
+async function sendChat(msg) {
+    const messages = document.getElementById('chat-messages');
+    const suggestions = document.getElementById('chat-suggestions');
+    if (suggestions) suggestions.style.display = 'none';
+
+    // Add user message
+    messages.innerHTML += `<div class="chat-msg chat-user">${escHtml(msg)}</div>`;
+    messages.scrollTop = messages.scrollHeight;
+
+    // Add typing indicator
+    const typing = document.createElement('div');
+    typing.className = 'chat-msg chat-bot chat-typing';
+    typing.textContent = '...';
+    messages.appendChild(typing);
+    messages.scrollTop = messages.scrollHeight;
+
+    try {
+        const res = await fetch('/api/chat.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ message: msg }),
+        });
+        const data = await res.json();
+        typing.remove();
+
+        // Add bot reply
+        let reply = escHtml(data.reply || data.error || 'Sorry, try again!');
+        // Convert [123] deal references to links
+        reply = reply.replace(/\[(\d+)\]/g, '<a href="/deal.php?id=$1" style="color:var(--orange);font-weight:600">[View Deal]</a>');
+        messages.innerHTML += `<div class="chat-msg chat-bot">${reply}</div>`;
+
+        // Add deal cards if any
+        if (data.deals && data.deals.length > 0) {
+            let html = '<div class="chat-deals">';
+            data.deals.forEach(d => {
+                html += `<a href="/deal.php?id=${d.id}" class="chat-deal-card">
+                    <span class="chat-deal-title">${escHtml(d.title.slice(0,40))}…</span>
+                    <span class="chat-deal-price">${escHtml(d.price)} <small>${escHtml(d.pct)} off</small></span>
+                </a>`;
+            });
+            html += '</div>';
+            messages.innerHTML += html;
         }
-
-        const id    = btn.dataset.id;
-        const saved = getSaved();
-        const isNew = !saved[id];
-
-        // Run original localStorage save
-        _origToggleSave(btn, event);
-
-        // Sync to server
-        if (isNew) {
-            fetch('/api/auth.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'save', deal_id: parseInt(id) }),
-            }).catch(() => {});
-        } else {
-            fetch('/api/auth.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'unsave', deal_id: parseInt(id) }),
-            }).catch(() => {});
-        }
-    };
-})();
-})();
+    } catch {
+        typing.remove();
+        messages.innerHTML += `<div class="chat-msg chat-bot">Oops, something went wrong. Try again!</div>`;
+    }
+    messages.scrollTop = messages.scrollHeight;
+}
 </script>
 
 <!-- Mobile Bottom Nav -->

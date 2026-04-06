@@ -36,14 +36,16 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
 <article class="deal-card" data-store="<?= h($deal['store']) ?>" data-id="<?= (int)$deal['id'] ?>" data-cat="<?= h($deal['category'] ?? '') ?>">
 
     <!-- Image wrap with overlays -->
-    <a href="<?= h($link) ?>" class="deal-card-img-wrap" style="display:block" aria-label="<?= h($deal['title']) ?>">
-        <img
-            src="<?= h($imgSrc) ?>"
-            alt="<?= h($deal['title']) ?>"
-            class="deal-card-img"
-            <?= $lazy ? 'loading="lazy"' : '' ?>
-            onerror="this.src='/assets/images/placeholder.svg'"
-        >
+    <div class="deal-card-img-wrap" style="position:relative">
+        <a href="<?= h($link) ?>" style="display:block" aria-label="<?= h($deal['title']) ?>">
+            <img
+                src="<?= h($imgSrc) ?>"
+                alt="<?= h($deal['title']) ?>"
+                class="deal-card-img"
+                <?= $lazy ? 'loading="lazy"' : '' ?>
+                onerror="this.src='/assets/images/placeholder.svg'"
+            >
+        </a>
 
         <!-- Discount type badge — top-right -->
         <span class="discount-badge <?= $badgeClass ?>" style="left:auto;right:10px"><?= $badgeLabel ?></span>
@@ -51,22 +53,13 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
         <!-- Percent badge — top-left -->
         <span class="pct-badge" style="left:10px;right:auto">-<?= $pct ?>%</span>
 
-        <!-- Save/wishlist heart button — top-right, below sale badge -->
+        <!-- Save heart — outside <a> so clicks don't navigate -->
         <button
             class="deal-save-btn"
             data-id="<?= (int)$deal['id'] ?>"
-            data-title="<?= h(mb_substr($deal['title'],0,60)) ?>"
-            data-price="<?= h(number_format((float)$deal['sale_price'],2)) ?>"
-            data-pct="<?= $pct ?>"
-            data-img="<?= h($imgSrc) ?>"
-            data-link="<?= h($link) ?>"
             aria-label="Save deal"
             onclick="toggleSave(this, event)"
         >♡</button>
-
-        <?php if($deal['is_featured']): ?>
-        <span class="featured-tag">⭐ Featured</span>
-        <?php endif; ?>
 
         <?php if($showTimer): ?>
         <span class="deal-timer">
@@ -74,7 +67,7 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
             <?= $hoursLeft ?>h left
         </span>
         <?php endif; ?>
-    </a>
+    </div>
 
     <!-- Body -->
     <div class="deal-card-body">

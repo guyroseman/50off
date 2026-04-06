@@ -169,11 +169,17 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
         </div>
     </div>
 
-    <!-- Saved deals -->
+    <!-- Account -->
     <div class="drawer-section">
-        <div class="drawer-section-title">Your Wishlist</div>
-        <div id="drawer-saved-summary" style="font-size:.85rem;color:var(--slate);padding:.25rem .85rem">
-            Loading saved deals…
+        <div class="drawer-section-title">Account</div>
+        <div class="drawer-nav-links">
+            <?php if ($_isLoggedIn): ?>
+            <a href="/account.php" class="drawer-nav-link">👤 My Account &amp; Saved Deals</a>
+            <a href="/logout.php" class="drawer-nav-link">🚪 Log Out</a>
+            <?php else: ?>
+            <a href="/signup.php" class="drawer-nav-link" style="color:var(--orange);font-weight:600">✨ Sign Up Free</a>
+            <a href="/login.php" class="drawer-nav-link">🔑 Log In</a>
+            <?php endif; ?>
         </div>
     </div>
 </aside>
@@ -270,19 +276,22 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
     </div>
 </nav>
 
-<!-- ══ SAVED DEALS SLIDE-PANEL ══════════════════════════════════════════════ -->
-<div class="drawer-overlay" id="saved-overlay"></div>
-<aside class="mobile-drawer" id="saved-panel" aria-label="Saved deals">
-    <div class="drawer-header">
-        <span style="font-weight:700;font-size:1rem">♡ Saved Deals <span id="saved-panel-count" style="color:var(--red)"></span></span>
-        <button class="drawer-close" onclick="closeSavedPanel()">✕</button>
-    </div>
-    <div id="saved-panel-body" style="padding:1rem">
-        <p class="saved-empty"><span class="big-icon">♡</span>No saved deals yet.<br>Tap the heart on any deal!</p>
-    </div>
-</aside>
-
 <!-- ══ TOAST CONTAINER ══════════════════════════════════════════════════════ -->
 <div id="toast-container" aria-live="polite"></div>
+
+<!-- Auth state for JS -->
+<script>
+window.__isLoggedIn = <?= $_isLoggedIn ? 'true' : 'false' ?>;
+window.__savedIds = <?php
+    if ($_isLoggedIn) {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT deal_id FROM saved_deals WHERE subscriber_id = ?");
+        $stmt->execute([$_currentUser['id']]);
+        echo json_encode(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+    } else {
+        echo '[]';
+    }
+?>;
+</script>
 
 <main class="site-main">
