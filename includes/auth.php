@@ -10,10 +10,14 @@ require_once __DIR__ . '/db.php';
 // ── Start session with secure settings ───────────────────────────────────────
 function initSession(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
+    // Detect HTTPS — works behind reverse proxies (Hostinger shared hosting)
+    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+              || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+              || (($_SERVER['SERVER_PORT'] ?? 80) == 443);
     session_set_cookie_params([
         'lifetime' => 86400 * 30, // 30 days
         'path'     => '/',
-        'secure'   => true,
+        'secure'   => $isSecure,
         'httponly'  => true,
         'samesite'  => 'Lax',
     ]);
@@ -174,10 +178,11 @@ function resetPassword(string $token, string $newPassword): array {
 // ── Get saved deals for a user ────────────────────────────────────────────────
 function getUserSavedDeals(int $userId): array {
     $db = getDB();
+    ensureAuthTables();
     $stmt = $db->prepare("
-        SELECT d.* FROM deals d
+        SELECT d.*, sd.created_at AS saved_at FROM deals d
         INNER JOIN saved_deals sd ON sd.deal_id = d.id
-        WHERE sd.subscriber_id = ? AND d.is_active = 1
+        WHERE sd.subscriber_id = ?
         ORDER BY sd.created_at DESC
     ");
     $stmt->execute([$userId]);

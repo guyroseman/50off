@@ -184,27 +184,6 @@ function shareDeal() {
         });
     }
 }
-
-// Sync detail page save button state with localStorage
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof getSaved !== 'function') return;
-    var saved = getSaved();
-    var btn   = document.getElementById('detail-save-btn');
-    var label = document.getElementById('detail-save-label');
-    if (!btn) return;
-    var id = btn.dataset.id;
-    if (saved[id]) {
-        btn.classList.add('saved');
-        if (label) label.textContent = '♥ Saved';
-    }
-
-    // Watch for changes (heart toggled by main.js)
-    var observer = new MutationObserver(function() {
-        var isSaved = btn.classList.contains('saved');
-        if (label) label.textContent = isSaved ? '♥ Saved' : '♡ Save Deal';
-    });
-    observer.observe(btn, { attributes: true, attributeFilter: ['class'] });
-});
 </script>
 
 <?php include 'includes/footer.php'; ?>

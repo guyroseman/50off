@@ -284,10 +284,15 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
 window.__isLoggedIn = <?= $_isLoggedIn ? 'true' : 'false' ?>;
 window.__savedIds = <?php
     if ($_isLoggedIn) {
-        $db = getDB();
-        $stmt = $db->prepare("SELECT deal_id FROM saved_deals WHERE subscriber_id = ?");
-        $stmt->execute([$_currentUser['id']]);
-        echo json_encode(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+        try {
+            $db = getDB();
+            ensureAuthTables();
+            $stmt = $db->prepare("SELECT deal_id FROM saved_deals WHERE subscriber_id = ?");
+            $stmt->execute([$_currentUser['id']]);
+            echo json_encode(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+        } catch (\Throwable $e) {
+            echo '[]';
+        }
     } else {
         echo '[]';
     }

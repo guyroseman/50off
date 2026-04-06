@@ -46,10 +46,13 @@ function toggleSave(btn, event) {
     event.preventDefault();
     event.stopPropagation();
 
-    // Not logged in → redirect to signup
+    // Not logged in → show toast then redirect to login
     if (!window.__isLoggedIn) {
-        const returnUrl = encodeURIComponent(location.pathname + location.search);
-        location.href = '/signup.php?redirect=' + returnUrl;
+        showToast('Log in to save deals ♡', 'default');
+        setTimeout(() => {
+            const returnUrl = encodeURIComponent(location.pathname + location.search);
+            location.href = '/login.php?redirect=' + returnUrl;
+        }, 800);
         return;
     }
 
@@ -57,7 +60,7 @@ function toggleSave(btn, event) {
     const isSaved = _savedSet.has(id);
 
     if (isSaved) {
-        // Unsave
+        // Unsave — optimistic update, revert on failure
         _savedSet.delete(id);
         markBtn(btn, false);
         showToast('Removed from saved deals', 'default');
@@ -65,9 +68,11 @@ function toggleSave(btn, event) {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ action: 'unsave', deal_id: parseInt(id) }),
-        }).catch(() => {});
+        }).then(r => r.json()).then(data => {
+            if (!data.ok) { _savedSet.add(id); markBtn(btn, true); showToast('Could not remove. Try again.', 'default'); }
+        }).catch(() => { _savedSet.add(id); markBtn(btn, true); showToast('Network error. Try again.', 'default'); });
     } else {
-        // Save
+        // Save — optimistic update, revert on failure
         _savedSet.add(id);
         markBtn(btn, true);
         showToast('♥ Deal saved!', 'save');
@@ -75,7 +80,9 @@ function toggleSave(btn, event) {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ action: 'save', deal_id: parseInt(id) }),
-        }).catch(() => {});
+        }).then(r => r.json()).then(data => {
+            if (!data.ok) { _savedSet.delete(id); markBtn(btn, false); showToast('Could not save. Try again.', 'default'); }
+        }).catch(() => { _savedSet.delete(id); markBtn(btn, false); showToast('Network error. Try again.', 'default'); });
     }
 }
 
