@@ -1395,16 +1395,18 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ─── DETAIL PAGE SAVE BUTTON ─────────────────────────────────────────────────── */
 .deal-save-btn--detail {
-    position: absolute; top: 12px; right: 12px; z-index: 3;
-    width: 40px; height: 40px; font-size: 1.3rem;
-    background: rgba(255,255,255,.9); backdrop-filter: blur(4px);
-    border: none; border-radius: 50%; cursor: pointer;
+    position: absolute; top: 16px; left: 16px; z-index: 3;
+    width: 44px; height: 44px; font-size: 1.4rem;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
+    border: 1px solid rgba(0,0,0,.06); border-radius: 50%; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,.15);
-    transition: transform .15s, background .15s;
+    box-shadow: 0 2px 12px rgba(0,0,0,.1);
+    transition: all var(--duration) var(--ease-out);
+    color: var(--slate);
 }
-.deal-save-btn--detail:active { transform: scale(.85); }
-.deal-save-btn--detail.saved { color: #e11d48; background: rgba(255,255,255,.95); }
+.deal-save-btn--detail:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+.deal-save-btn--detail:active { transform: scale(.9); }
+.deal-save-btn--detail.saved { color: #e11d48; background: rgba(255,255,255,.97); border-color: rgba(225,29,72,.15); }
 .deal-detail-save-text { font-weight: 600; }
 .deal-detail-save-text .saved { color: #e11d48; }
 
