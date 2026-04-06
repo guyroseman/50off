@@ -95,7 +95,7 @@ $run = match($requested) {
     'working'     => ['amazon', 'target', 'ebay'],
     'aggregators' => ['dealblogs', 'woot', 'dealnews', 'ebay'],
     'retail'      => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos'],
-    'all'         => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'walmart', 'dealblogs', 'woot', 'dealnews', 'ebay'],
+    'all'         => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'walmart', 'ebay'],
     default       => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'ebay'],
 };
 
@@ -125,7 +125,11 @@ if (!$jsonMode) {
     $dupExp = $db->exec("DELETE d1 FROM deals d1
         INNER JOIN deals d2 ON d1.title = d2.title AND d1.store = d2.store AND d1.id > d2.id
         WHERE d1.store IN ('6pm', 'zappos') AND d1.is_active = 1");
-    echo "✓ Duplicates: " . ($dupExp ?: 0) . " duplicate 6pm/zappos deals removed\n\n";
+    echo "✓ Duplicates: " . ($dupExp ?: 0) . " duplicate 6pm/zappos deals removed\n";
+
+    // Remove 'other' store deals (broken blog links, not direct retailer)
+    $otherExp = $db->exec("DELETE FROM deals WHERE store = 'other'");
+    echo "✓ Cleaned: " . ($otherExp ?: 0) . " 'other' store deals removed\n\n";
 }
 
 // ── Scraper map ───────────────────────────────────────────────────────────────

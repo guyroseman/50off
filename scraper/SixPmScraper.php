@@ -261,19 +261,21 @@ class SixPmScraper extends BaseScraper
             $productUrl = $prod['defaultProductUrl']
                        ?? $prod['productUrl']
                        ?? null;
-            if ($productUrl && !str_starts_with($productUrl, 'http')) {
+            // Fix protocol-relative URLs (//www.6pm.com/...) and relative paths (/p/...)
+            if ($productUrl && str_starts_with($productUrl, '//')) {
+                $productUrl = 'https:' . $productUrl;
+            } elseif ($productUrl && !str_starts_with($productUrl, 'http')) {
                 $productUrl = 'https://www.6pm.com' . $productUrl;
             }
             if (!$productUrl && $productId) {
                 $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim("{$brand} {$name}")));
-                $productUrl = "https://www.6pm.com/product/{$productId}/{$slug}";
+                $productUrl = "https://www.6pm.com/p/{$slug}/product/{$productId}";
             }
             if (!$productUrl) continue;
             // Strip /color/NNN suffix so all color variants dedup to one canonical URL
             $productUrl = preg_replace('#/color/\d+#', '', $productUrl);
-            // Also strip tracking query params
-            $productUrl = preg_replace('/[?&]pf_rd_[^&]+/', '', $productUrl);
-            $productUrl = rtrim($productUrl, '?&');
+            // Strip all tracking query params
+            $productUrl = preg_replace('/\?.*$/', '', $productUrl);
 
             // Rating
             $rating      = isset($prod['reviewAvgRating'])  ? (float)$prod['reviewAvgRating']  : null;

@@ -129,12 +129,18 @@ class ZapposScraper extends BaseScraper
             // Product URL
             $relUrl = $prod['productUrl'] ?? null;
             if (!$relUrl) continue;
-            $productUrl = str_starts_with($relUrl, 'http') ? $relUrl : 'https://www.' . $domain . $relUrl;
+            // Fix protocol-relative (//www.zappos.com/...) vs relative (/p/...)
+            if (str_starts_with($relUrl, '//')) {
+                $productUrl = 'https:' . $relUrl;
+            } elseif (str_starts_with($relUrl, 'http')) {
+                $productUrl = $relUrl;
+            } else {
+                $productUrl = 'https://www.' . $domain . $relUrl;
+            }
             // Deduplicate: strip /color/NNN so all color variants map to one canonical URL
             $productUrl = preg_replace('#/color/\d+#', '', $productUrl);
-            // Strip tracking params
-            $productUrl = preg_replace('/[?&]pf_rd_[^&]+/', '', $productUrl);
-            $productUrl = rtrim($productUrl, '?&');
+            // Strip all tracking query params
+            $productUrl = preg_replace('/\?.*$/', '', $productUrl);
 
             $rating      = isset($prod['reviewAvgRating'])  ? (float)$prod['reviewAvgRating']  : null;
             $reviewCount = (int)($prod['reviewCount'] ?? $prod['numReviews'] ?? 0);
