@@ -112,13 +112,20 @@ function handleChat(e) {
     sendChat(msg);
 }
 
+// Safe escHtml fallback in case main.js hasn't loaded yet
+function _esc(s) { return typeof escHtml === 'function' ? escHtml(s) : String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
 async function sendChat(msg) {
     const messages = document.getElementById('chat-messages');
+    if (!messages) return;
     const suggestions = document.getElementById('chat-suggestions');
     if (suggestions) suggestions.style.display = 'none';
 
     // Add user message
-    messages.innerHTML += `<div class="chat-msg chat-user">${escHtml(msg)}</div>`;
+    const userDiv = document.createElement('div');
+    userDiv.className = 'chat-msg chat-user';
+    userDiv.textContent = msg;
+    messages.appendChild(userDiv);
     messages.scrollTop = messages.scrollHeight;
 
     // Add typing indicator
@@ -134,30 +141,39 @@ async function sendChat(msg) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ message: msg }),
         });
+        if (!res.ok && res.status !== 429) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         typing.remove();
 
-        // Add bot reply
-        let reply = escHtml(data.reply || data.error || 'Sorry, try again!');
-        // Convert [123] deal references to links
+        // Add bot reply — use textContent for safety, then add link replacements
+        let reply = _esc(data.reply || data.error || 'Sorry, try again!');
+        // Convert [123] deal references to clickable links
         reply = reply.replace(/\[(\d+)\]/g, '<a href="/deal.php?id=$1" style="color:var(--orange);font-weight:600">[View Deal]</a>');
-        messages.innerHTML += `<div class="chat-msg chat-bot">${reply}</div>`;
+        const botDiv = document.createElement('div');
+        botDiv.className = 'chat-msg chat-bot';
+        botDiv.innerHTML = reply;
+        messages.appendChild(botDiv);
 
         // Add deal cards if any
         if (data.deals && data.deals.length > 0) {
             let html = '<div class="chat-deals">';
             data.deals.forEach(d => {
-                html += `<a href="/deal.php?id=${d.id}" class="chat-deal-card">
-                    <span class="chat-deal-title">${escHtml(d.title.slice(0,40))}…</span>
-                    <span class="chat-deal-price">${escHtml(d.price)} <small>${escHtml(d.pct)} off</small></span>
+                html += `<a href="/deal.php?id=${_esc(d.id)}" class="chat-deal-card">
+                    <span class="chat-deal-title">${_esc(String(d.title||'').slice(0,40))}…</span>
+                    <span class="chat-deal-price">${_esc(d.price||'')} <small>${_esc(d.pct||'')} off</small></span>
                 </a>`;
             });
             html += '</div>';
-            messages.innerHTML += html;
+            const dealsDiv = document.createElement('div');
+            dealsDiv.innerHTML = html;
+            messages.appendChild(dealsDiv);
         }
-    } catch {
+    } catch(err) {
         typing.remove();
-        messages.innerHTML += `<div class="chat-msg chat-bot">Oops, something went wrong. Try again!</div>`;
+        const errDiv = document.createElement('div');
+        errDiv.className = 'chat-msg chat-bot';
+        errDiv.textContent = 'Something went wrong. Try again!';
+        messages.appendChild(errDiv);
     }
     messages.scrollTop = messages.scrollHeight;
 }

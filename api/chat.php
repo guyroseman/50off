@@ -4,13 +4,13 @@
  *
  * POST { message: "I need running shoes under $50" }
  * Returns { reply: "...", deals: [...] }
- *
- * Flow:
- * 1. Search deals DB for keywords from user message
- * 2. Build context with matching deals
- * 3. Call Claude API with deals context + user message
- * 4. Return AI response with deal recommendations
  */
+
+// Capture all output — any PHP notice/warning must NOT contaminate JSON
+ob_start();
+// Suppress display errors so they don't corrupt the JSON response
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -25,8 +25,9 @@ define('CLAUDE_API_KEY', getenv('CLAUDE_API_KEY') ?: '');
 define('CLAUDE_MODEL', 'claude-haiku-4-5-20251001'); // fast + cheap
 
 function json_out(array $data, int $code = 200) {
+    ob_end_clean(); // discard any stray PHP output
     http_response_code($code);
-    echo json_encode($data, JSON_UNESCAPED_SLASHES);
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
 

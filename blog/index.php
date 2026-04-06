@@ -28,6 +28,21 @@ $canonicalUrl = 'https://50offsale.com/blog/' . ($catFilter ? '?cat=' . urlencod
 
 $categories = ['' => 'All Posts', 'roundup' => '🔥 Roundups', 'guide' => '📖 Guides'];
 
+// Per-slug gradient class map
+function getBlogPlaceholderClass(string $slug, string $cat): string {
+    $map = [
+        'best-amazon-deals-this-week'  => 'ph-amazon-deals',
+        'best-deals-under-50-dollars'  => 'ph-deals-under',
+        'how-50off-works'              => 'ph-how-works',
+        'best-kitchen-deals-amazon'    => 'ph-kitchen',
+        'best-headphones-audio-deals'  => 'ph-headphones',
+        'target-clearance-guide'       => 'ph-target',
+        'never-pay-full-price-amazon'  => 'ph-full-price',
+        'best-bedding-deals-amazon'    => 'ph-bedding',
+    ];
+    return $map[$slug] ?? ($cat === 'roundup' ? 'ph-roundup' : 'ph-guide');
+}
+
 // Featured post = first post on page 1 with no filter
 $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($posts) : null;
 ?>
@@ -108,7 +123,10 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
 .blog-featured{display:grid;grid-template-columns:1fr 1fr;gap:2rem;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1.5px solid #f3f4f6;margin-bottom:2.5rem}
 @media(max-width:700px){.blog-featured{grid-template-columns:1fr}}
 .blog-featured-img{width:100%;height:100%;min-height:240px;object-fit:cover}
-.blog-featured-placeholder{width:100%;min-height:240px;background:linear-gradient(135deg,#667eea,#f093fb);display:flex;align-items:center;justify-content:center;font-size:4rem}
+.blog-featured-placeholder{width:100%;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;position:relative;overflow:hidden}
+.blog-featured-placeholder::before{content:'';position:absolute;inset:0;background:inherit;opacity:.15;backdrop-filter:blur(20px)}
+.blog-featured-placeholder-icon{font-size:5rem;position:relative;z-index:1;filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))}
+.blog-featured-placeholder-label{position:relative;z-index:1;font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.9);background:rgba(0,0,0,.25);padding:.25rem .7rem;border-radius:99px;backdrop-filter:blur(8px)}
 .blog-featured-body{padding:2rem;display:flex;flex-direction:column;justify-content:center}
 .blog-featured-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#ef4444;margin-bottom:.5rem}
 .blog-featured-title{font-size:1.3rem;font-weight:800;color:#111827;line-height:1.25;margin:0 0 .75rem;text-decoration:none;display:block}
@@ -122,9 +140,20 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
 .blog-card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.07);border:1.5px solid #f3f4f6;display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
 .blog-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.11)}
 .blog-card-img{width:100%;height:170px;object-fit:cover}
-.blog-card-img-placeholder{width:100%;height:170px;display:flex;align-items:center;justify-content:center;font-size:3.5rem}
-.blog-card-img-placeholder.cat-roundup{background:linear-gradient(135deg,#ff6b6b,#ffd93d)}
-.blog-card-img-placeholder.cat-guide{background:linear-gradient(135deg,#667eea,#764ba2)}
+.blog-card-img-placeholder{width:100%;height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;position:relative;overflow:hidden}
+.blog-card-img-placeholder .ph-icon{font-size:3.2rem;filter:drop-shadow(0 2px 8px rgba(0,0,0,.25));position:relative;z-index:1}
+.blog-card-img-placeholder .ph-label{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:rgba(255,255,255,.85);background:rgba(0,0,0,.2);padding:.15rem .55rem;border-radius:99px;position:relative;z-index:1}
+/* Unique gradient per slug */
+.ph-amazon-deals{background:linear-gradient(135deg,#ff6b35 0%,#f7971e 50%,#ffd200 100%)}
+.ph-deals-under{background:linear-gradient(135deg,#00b09b 0%,#11998e 50%,#38ef7d 100%)}
+.ph-how-works{background:linear-gradient(135deg,#4776e6 0%,#8e54e9 100%)}
+.ph-kitchen{background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%)}
+.ph-headphones{background:linear-gradient(135deg,#0f2027 0%,#203a43 50%,#2c5364 100%)}
+.ph-target{background:linear-gradient(135deg,#f77062 0%,#fe5196 100%)}
+.ph-full-price{background:linear-gradient(135deg,#f6d365 0%,#fda085 100%)}
+.ph-bedding{background:linear-gradient(135deg,#a18cd1 0%,#fbc2eb 100%)}
+.ph-roundup{background:linear-gradient(135deg,#ff6b6b 0%,#ffd93d 100%)}
+.ph-guide{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}
 .blog-card-body{padding:1.2rem;flex:1;display:flex;flex-direction:column}
 .blog-card-cat{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#ef4444;margin-bottom:.35rem;display:flex;align-items:center;justify-content:space-between}
 .blog-card-read-time{font-size:.67rem;color:#9ca3af;font-weight:400;text-transform:none;letter-spacing:0}
@@ -191,8 +220,14 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
 <div class="blog-featured">
     <?php if ($featuredPost['og_image']): ?>
     <img src="<?= h($featuredPost['og_image']) ?>" alt="<?= h($featuredPost['title']) ?>" class="blog-featured-img" loading="eager">
-    <?php else: ?>
-    <div class="blog-featured-placeholder">🔥</div>
+    <?php else:
+        $fEmoji = $featuredPost['category'] === 'roundup' ? '🔥' : '📖';
+        $fCls   = getBlogPlaceholderClass($featuredPost['slug'], $featuredPost['category']);
+    ?>
+    <div class="blog-featured-placeholder <?= $fCls ?>">
+        <span class="blog-featured-placeholder-icon"><?= $fEmoji ?></span>
+        <span class="blog-featured-placeholder-label"><?= h(ucfirst($featuredPost['category'])) ?></span>
+    </div>
     <?php endif; ?>
     <div class="blog-featured-body">
         <span class="blog-featured-label">⭐ Featured Post · <?= h(ucfirst($featuredPost['category'])) ?></span>
@@ -221,8 +256,13 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
     <meta itemprop="author" content="50OFF Team">
     <?php if ($post['og_image']): ?>
     <img src="<?= h($post['og_image']) ?>" alt="<?= h($post['title']) ?>" class="blog-card-img" loading="lazy" itemprop="image">
-    <?php else: ?>
-    <div class="blog-card-img-placeholder cat-<?= h($post['category']) ?>"><?= $emoji ?></div>
+    <?php else:
+        $phClass = getBlogPlaceholderClass($post['slug'], $post['category']);
+    ?>
+    <div class="blog-card-img-placeholder <?= $phClass ?>">
+        <span class="ph-icon"><?= $emoji ?></span>
+        <span class="ph-label"><?= h(ucfirst($post['category'])) ?></span>
+    </div>
     <?php endif; ?>
     <div class="blog-card-body">
         <div class="blog-card-cat">
