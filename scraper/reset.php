@@ -51,11 +51,13 @@ echo "\n→ Running scrapers...\n\n";
 
 require_once __DIR__ . '/BaseScraper.php';
 require_once __DIR__ . '/AmazonScraper.php';
+require_once __DIR__ . '/SixPmScraper.php';
 require_once __DIR__ . '/TargetScraper.php';
 require_once __DIR__ . '/EbayScraper.php';
 
 $scrapers = [
     'amazon'    => fn() => new AmazonScraper(),
+    '6pm'       => fn() => new SixPmScraper(),
     'target'    => fn() => new TargetScraper(),
     'ebay'      => fn() => new EbayScraper(),
 ];
