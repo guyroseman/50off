@@ -22,6 +22,7 @@ class ZapposScraper extends BaseScraper
 {
     protected string $store = 'zappos';
     private   int    $limit = 100;
+    private   array  $seenIds = [];
 
     private const PAGES = [
         'https://www.zappos.com/c/shoes?s=PercentOff/desc&pge=0',
@@ -97,6 +98,11 @@ class ZapposScraper extends BaseScraper
         foreach ($products as $prod) {
             if (!is_array($prod)) continue;
             if (($prod['onSale'] ?? '') !== 'true') continue;
+
+            // Deduplicate by productId (skip color/size variants)
+            $pid = $prod['productId'] ?? $prod['styleId'] ?? null;
+            if ($pid && isset($this->seenIds[$pid])) continue;
+            if ($pid) $this->seenIds[$pid] = true;
 
             $brand = $prod['brandName'] ?? '';
             $name  = $prod['productName'] ?? $prod['name'] ?? '';

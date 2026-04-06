@@ -192,7 +192,7 @@ function showToast(msg, type = 'default', duration = 3000) {
     if (!toastContainer) return;
     const t = document.createElement('div');
     t.className = `toast${type === 'success' ? ' toast-success' : type === 'deal' ? ' toast-deal' : type === 'save' ? ' toast-save' : ''}`;
-    t.textContent = msg;
+    if (msg.includes('<')) t.innerHTML = msg; else t.textContent = msg;
     toastContainer.appendChild(t);
     setTimeout(() => {
         t.classList.add('removing');
@@ -247,7 +247,7 @@ function renderSuggestions(items) {
     items.forEach(item => {
         const a = document.createElement('a');
         a.href  = `/deal.php?id=${item.id}`;
-        a.innerHTML = `<div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem" onmouseover="this.style.background='var(--ash)'" onmouseout="this.style.background='transparent'"><img src="${item.image}" width="36" height="36" style="object-fit:contain;border-radius:6px;background:var(--ash)" onerror="this.style.display='none'"><div><div style="font-size:.88rem;font-weight:600;color:var(--ink)">${escHtml(item.title)}</div><div style="font-size:.78rem;color:var(--orange)">$${item.price} <span style="color:var(--green)">-${item.pct}%</span></div></div></div>`;
+        a.innerHTML = `<div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem" onmouseover="this.style.background='var(--ash)'" onmouseout="this.style.background='transparent'"><img src="${escHtml(item.image||'')}" width="36" height="36" style="object-fit:contain;border-radius:6px;background:var(--ash)" onerror="this.style.display='none'"><div><div style="font-size:.88rem;font-weight:600;color:var(--ink)">${escHtml(item.title)}</div><div style="font-size:.78rem;color:var(--orange)">$${escHtml(String(item.price))} <span style="color:var(--green)">-${escHtml(String(item.pct))}%</span></div></div></div>`;
         box.appendChild(a);
     });
     form.style.position = 'relative';
@@ -332,7 +332,7 @@ if (hotScroll) {
 
 // ─── Cat bar: fade edges to show scroll affordance (mobile) ───────────────────
 (function catBarFade() {
-    const bar = document.querySelector('.cat-bar');
+    const bar = document.querySelector('.cat-pill-strip');
     if (!bar) return;
     function update() {
         bar.style.setProperty('--fade-left',  bar.scrollLeft > 10  ? '1' : '0');

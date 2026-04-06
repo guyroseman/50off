@@ -115,11 +115,17 @@ if (!$jsonMode) {
     $exp->execute();
     echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n";
 
-    // Remove implausible list prices (fake inflated MSRPs, e.g. $8 "was $289")
+    // Remove implausible list prices (fake inflated MSRPs or per-unit prices)
     $fakeExp = $db->prepare("UPDATE deals SET is_active=0
-        WHERE is_active=1 AND original_price > sale_price * 20");
+        WHERE is_active=1 AND original_price > sale_price * 10");
     $fakeExp->execute();
-    echo "✓ Fake prices: {$fakeExp->rowCount()} implausible list-price deals deactivated\n\n";
+    echo "✓ Fake prices: {$fakeExp->rowCount()} implausible deals deactivated\n";
+
+    // Remove duplicate 6pm/zappos deals (same product in multiple colors)
+    $dupExp = $db->exec("DELETE d1 FROM deals d1
+        INNER JOIN deals d2 ON d1.title = d2.title AND d1.store = d2.store AND d1.id > d2.id
+        WHERE d1.store IN ('6pm', 'zappos') AND d1.is_active = 1");
+    echo "✓ Duplicates: " . ($dupExp ?: 0) . " duplicate 6pm/zappos deals removed\n\n";
 }
 
 // ── Scraper map ───────────────────────────────────────────────────────────────

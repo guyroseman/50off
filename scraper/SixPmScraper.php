@@ -195,11 +195,19 @@ class SixPmScraper extends BaseScraper
 
     // ── Process product list (either source) ──────────────────────────────────
     // $centsMode: true when prices are integers in cents (from __NEXT_DATA__)
+    private array $seenProductIds = [];
+
     private function processProducts(array $products, bool $centsMode = false): int
     {
         $saved = 0;
         foreach ($products as $prod) {
             if (!is_array($prod)) continue;
+
+            // Deduplicate: skip if we already processed this productId
+            // (same shoe in 10 colors/sizes = 10 entries with same productId)
+            $pid = $prod['productId'] ?? $prod['styleId'] ?? null;
+            if ($pid && isset($this->seenProductIds[$pid])) continue;
+            if ($pid) $this->seenProductIds[$pid] = true;
 
             // Title: brand + name
             // __NEXT_DATA__ confirmed fields: productName, brand (object with name)

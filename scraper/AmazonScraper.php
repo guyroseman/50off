@@ -247,11 +247,25 @@ class AmazonScraper extends BaseScraper
             if ($sale <= 0) continue;
 
             // ── Original / was price (struck through) ───────────────────────
-            $origNode = $xpath->query(
-                './/span[contains(@class,"a-text-price") or @data-a-strike="true"]//span[@class="a-offscreen"]',
+            // IMPORTANT: Skip per-unit prices like "$136.27 / ounce" that also
+            // live inside a-text-price spans. Check parent text for unit markers.
+            $original = 0.0;
+            $origCandidates = $xpath->query(
+                './/span[contains(@class,"a-text-price") or @data-a-strike="true"]',
                 $result
-            )->item(0);
-            $original = $origNode ? $this->parsePrice($origNode->textContent) : 0.0;
+            );
+            foreach ($origCandidates as $oc) {
+                if (!($oc instanceof \DOMElement)) continue;
+                $ctx = $oc->parentNode ? $oc->parentNode->textContent : $oc->textContent;
+                if (preg_match('#/\s*(ounce|oz|lb|pound|count|each|fl\s*oz|gram|pack|ct|piece|unit|yard|foot|ft|inch|liter|gallon|quart|ml|kg|mg|tablet|capsule|serving|sq)#i', $ctx)) {
+                    continue; // per-unit price, not a "was" price
+                }
+                $off = $xpath->query('.//span[@class="a-offscreen"]', $oc)->item(0);
+                if ($off) {
+                    $val = $this->parsePrice($off->textContent);
+                    if ($val > $sale) { $original = $val; break; }
+                }
+            }
 
             // ── Discount % badge ─────────────────────────────────────────────
             $pct = 0;

@@ -90,6 +90,7 @@
     let _pendingDealId = null;
 
     // ── Patch main.js toggleSave to trigger email modal on first save ─────────
+    if (typeof window.toggleSave !== 'function' || typeof window.getSaved !== 'function') return;
     const _origToggleSave = window.toggleSave;
     window.toggleSave = function(btn, event) {
         const id      = btn.dataset.id;
@@ -124,7 +125,7 @@
                 <span><strong>${dealData.pct}% OFF</strong> — ${dealData.title.slice(0,52)}…</span>
             </div>`;
         }
-        modal.style.display = '';
+        modal.style.display = 'block';
         requestAnimationFrame(() => modal.classList.add('open'));
         document.getElementById('email-save-input').focus();
         document.body.style.overflow = 'hidden';

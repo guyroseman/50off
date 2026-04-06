@@ -45,7 +45,14 @@ include 'includes/header.php';
     <div class="deal-detail-grid">
         <!-- Image -->
         <div class="deal-detail-img-wrap">
-            <span class="discount-badge badge-fire deal-detail-badge">-<?= $pct ?>%</span>
+<?php
+$badgeClass = match(true) {
+    $pct >= 80 => 'badge-flash',
+    $pct >= 70 => 'badge-trending',
+    default    => 'badge-deal',
+};
+?>
+            <span class="discount-badge <?= $badgeClass ?> deal-detail-badge">-<?= $pct ?>%</span>
 
             <!-- Save heart button on image -->
             <button
