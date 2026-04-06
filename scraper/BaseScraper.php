@@ -114,11 +114,21 @@ abstract class BaseScraper {
     protected function saveDeal(array $d): bool {
         if (empty($d['title']) || empty($d['product_url'])) return false;
 
-        // Block books/media/digital — we only want physical products
+        // Block books/media/digital — we only want PHYSICAL products
         $titleLower = strtolower($d['title']);
-        $blockWords = ['paperback', 'hardcover', 'kindle', 'audiobook', ' isbn', 'board book',
-                       'blu-ray', 'dvd', '[disc]', 'movie', 'motion picture', 'video game',
-                       'playstation', 'xbox', 'nintendo switch', '[digital code]', '[download]'];
+        $blockWords = [
+            // Books & media
+            'paperback', 'hardcover', 'kindle', 'audiobook', ' isbn', 'board book',
+            'blu-ray', 'dvd', '[disc]', 'movie', 'motion picture',
+            // Gaming / consoles / digital
+            'video game', 'playstation', 'xbox', 'nintendo switch',
+            '[digital code]', '[download]', 'digital download', 'software license',
+            // Mobile apps / app store games
+            'running game', 'tap game', 'race 3d', 'fun race', '3d challenge',
+            'escape game', 'idle game', 'clicker game', 'puzzle game',
+            'games 2024', 'games 2025', 'games 2026', 'games 2027',
+            'android app', 'ios app', 'appstore',
+        ];
         foreach ($blockWords as $bw) {
             if (str_contains($titleLower, $bw)) return false;
         }
@@ -129,6 +139,10 @@ abstract class BaseScraper {
         $sale = (float)($d['sale_price']     ?? 0);
         $pct  = (int)($d['discount_pct']     ?? 0);
 
+        // Minimum sale price — filters out cheap digital content (apps, games)
+        // Real physical products worth featuring are almost always $7+
+        if ($sale < 7.00) return false;
+
         if ($pct === 0 && $orig > 0 && $sale > 0 && $sale < $orig) {
             $pct = $this->calcDiscount($orig, $sale);
         }
@@ -138,9 +152,8 @@ abstract class BaseScraper {
         if ($pct < 50 || $sale <= 0 || $orig <= $sale) return false;
 
         // Reject implausible list prices (fake/inflated MSRP or per-unit prices)
-        // A real 90%+ off deal is extremely rare; ratio > 10x almost always means
-        // the retailer set a fictional "compare at" or it's a per-unit price
-        if ($orig > $sale * 10) return false;
+        // E.g. $14.99 lipstick "was $136.27" = per-ounce price, not real discount
+        if ($orig > $sale * 8) return false;
 
         $title = substr(trim(strip_tags($d['title'])), 0, 500);
         $url   = substr($d['product_url'], 0, 1000);

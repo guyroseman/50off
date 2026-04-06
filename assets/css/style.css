@@ -42,12 +42,19 @@
     --radius-lg:  20px;
     --radius-xl:  999px;
 
-    /* Shadows */
-    --shadow-xs:  0 1px 2px rgba(0,0,0,.05);
-    --shadow-sm:  0 1px 4px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
-    --shadow:     0 4px 16px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04);
-    --shadow-lg:  0 8px 32px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.05);
-    --shadow-orange: 0 4px 16px rgba(255,107,0,.25);
+    /* Shadows — premium depth */
+    --shadow-xs:  0 1px 2px rgba(0,0,0,.04);
+    --shadow-sm:  0 2px 6px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.03);
+    --shadow:     0 4px 20px rgba(0,0,0,.07), 0 1px 4px rgba(0,0,0,.03);
+    --shadow-lg:  0 12px 40px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.04);
+    --shadow-orange: 0 6px 20px rgba(255,107,0,.3);
+
+    /* Motion — consistent easing */
+    --ease-out: cubic-bezier(.22,.61,.36,1);
+    --ease-spring: cubic-bezier(.175,.885,.32,1.275);
+    --duration-fast: .18s;
+    --duration: .28s;
+    --duration-slow: .4s;
 }
 
 /* ─── RESET & BASE ──────────────────────────────────────────────────────────── */
@@ -229,18 +236,18 @@ button { font-family: inherit; cursor: pointer; }
     display: flex;
     align-items: center;
     gap: .3rem;
-    padding: .3rem .85rem;
+    padding: .35rem .9rem;
     border-radius: var(--radius-xl);
     font-size: .8rem;
     font-weight: 500;
     background: var(--white);
     border: 1.5px solid var(--border);
     color: var(--slate);
-    transition: all .15s;
+    transition: all var(--duration-fast) var(--ease-out);
     white-space: nowrap;
 }
-.store-pill:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-light); }
-.store-pill.active { background: var(--orange); border-color: var(--orange); color: #fff; font-weight: 600; }
+.store-pill:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-light); transform: translateY(-1px); }
+.store-pill.active { background: var(--orange); border-color: var(--orange); color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(255,107,0,.3); }
 .pill-count {
     font-size: .68rem;
     background: rgba(0,0,0,.1);
@@ -303,9 +310,10 @@ button { font-family: inherit; cursor: pointer; }
 /* ─── HERO — matches Figma SearchBar hero ───────────────────────────────────── */
 .hero-banner {
     text-align: center;
-    padding: 3.5rem 1.5rem 2.5rem;
+    padding: 3rem 1.5rem 2rem;
     max-width: 800px;
     margin: 0 auto;
+    animation: fadeInUp .6s var(--ease-out) both;
 }
 
 .hero-headline {
@@ -486,12 +494,14 @@ button { font-family: inherit; cursor: pointer; }
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: box-shadow .2s, transform .2s;
+    transition: box-shadow var(--duration) var(--ease-out), transform var(--duration) var(--ease-out), border-color var(--duration);
     box-shadow: var(--shadow-sm);
+    will-change: transform;
 }
 .deal-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-5px) scale(1.01);
     box-shadow: var(--shadow-lg);
+    border-color: rgba(255,107,0,.15);
 }
 
 /* Image area */
@@ -505,10 +515,10 @@ button { font-family: inherit; cursor: pointer; }
     width: 100%;
     height: 100%;
     object-fit: contain;
-    padding: 10px;
-    transition: transform .3s;
+    padding: 12px;
+    transition: transform var(--duration-slow) var(--ease-out);
 }
-.deal-card:hover .deal-card-img { transform: scale(1.03); }
+.deal-card:hover .deal-card-img { transform: scale(1.06); }
 
 /* Discount type badge — top-left (Sale Red from palette) */
 .discount-badge {
@@ -673,23 +683,35 @@ button { font-family: inherit; cursor: pointer; }
     align-items: center;
     justify-content: center;
     gap: .4rem;
-    background: var(--orange);
+    background: linear-gradient(135deg, var(--orange) 0%, #ff8533 100%);
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
     font-size: .88rem;
-    padding: .6rem 1rem;
+    padding: .7rem 1rem;
     border-radius: var(--radius-sm);
     border: none;
-    transition: background .2s, transform .1s, box-shadow .2s;
-    margin-top: .4rem;
+    transition: all var(--duration) var(--ease-out);
+    margin-top: .5rem;
     text-align: center;
-    letter-spacing: .01em;
+    letter-spacing: .02em;
+    position: relative;
+    overflow: hidden;
 }
+.deal-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,.15) 100%);
+    transition: opacity var(--duration);
+    opacity: 0;
+}
+.deal-btn:hover::after { opacity: 1; }
 .deal-btn:hover {
-    background: var(--orange-hover);
+    background: linear-gradient(135deg, var(--orange-hover) 0%, var(--orange) 100%);
     box-shadow: var(--shadow-orange);
-    transform: scale(1.01);
+    transform: translateY(-1px);
 }
+.deal-btn:active { transform: translateY(0) scale(.98); }
 .deal-btn--xl {
     font-size: .95rem;
     padding: .75rem 1.5rem;
@@ -750,8 +772,10 @@ button { font-family: inherit; cursor: pointer; }
     position: relative;
     background: var(--ash);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     aspect-ratio: 1;
+    overflow: hidden;
+    animation: fadeInUp .5s var(--ease-out) both;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -782,6 +806,10 @@ button { font-family: inherit; cursor: pointer; }
     gap: 1.5rem;
     flex-wrap: wrap;
     margin: 1.25rem 0;
+    background: var(--ash);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
     padding: 1.25rem 1.5rem;
     background: var(--ash);
     border: 1px solid var(--border);
@@ -944,18 +972,22 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ─── ANIMATIONS ────────────────────────────────────────────────────────────── */
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(20px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.deal-card { animation: fadeInUp .28s ease both; }
-.deals-grid .deal-card:nth-child(1) { animation-delay: .03s; }
-.deals-grid .deal-card:nth-child(2) { animation-delay: .06s; }
-.deals-grid .deal-card:nth-child(3) { animation-delay: .09s; }
-.deals-grid .deal-card:nth-child(4) { animation-delay: .12s; }
-.deals-grid .deal-card:nth-child(5) { animation-delay: .15s; }
-.deals-grid .deal-card:nth-child(6) { animation-delay: .18s; }
-.deals-grid .deal-card:nth-child(7) { animation-delay: .21s; }
-.deals-grid .deal-card:nth-child(8) { animation-delay: .24s; }
+.deal-card { animation: fadeInUp .4s var(--ease-out) both; }
+.deals-grid .deal-card:nth-child(1)  { animation-delay: .04s; }
+.deals-grid .deal-card:nth-child(2)  { animation-delay: .08s; }
+.deals-grid .deal-card:nth-child(3)  { animation-delay: .12s; }
+.deals-grid .deal-card:nth-child(4)  { animation-delay: .16s; }
+.deals-grid .deal-card:nth-child(5)  { animation-delay: .20s; }
+.deals-grid .deal-card:nth-child(6)  { animation-delay: .24s; }
+.deals-grid .deal-card:nth-child(7)  { animation-delay: .28s; }
+.deals-grid .deal-card:nth-child(8)  { animation-delay: .32s; }
+.deals-grid .deal-card:nth-child(9)  { animation-delay: .36s; }
+.deals-grid .deal-card:nth-child(10) { animation-delay: .40s; }
+.deals-grid .deal-card:nth-child(11) { animation-delay: .44s; }
+.deals-grid .deal-card:nth-child(12) { animation-delay: .48s; }
 
 /* ─── MOBILE BOTTOM NAV ──────────────────────────────────────────────────────── */
 .mobile-bottom-nav {
@@ -1174,11 +1206,12 @@ button { font-family: inherit; cursor: pointer; }
     background: var(--ash); border: 1.5px solid var(--border);
     border-radius: 999px;
     font-size: .8rem; font-weight: 600; color: var(--slate);
+    transition: all var(--duration-fast) var(--ease-out);
     white-space: nowrap; text-decoration: none;
     transition: all .15s; flex-shrink: 0;
 }
-.cat-pill:hover { background: var(--orange-light); border-color: var(--orange); color: var(--orange); }
-.cat-pill.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+.cat-pill:hover { background: var(--orange-light); border-color: var(--orange); color: var(--orange); transform: translateY(-1px); }
+.cat-pill.active { background: var(--orange); border-color: var(--orange); color: #fff; box-shadow: 0 2px 8px rgba(255,107,0,.25); }
 @media (max-width: 768px) {
     .cat-pill-strip { justify-content: flex-start; }
 }

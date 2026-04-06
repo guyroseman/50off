@@ -95,7 +95,7 @@ $run = match($requested) {
     'working'     => ['amazon', 'target', 'ebay'],
     'aggregators' => ['dealblogs', 'woot', 'dealnews', 'ebay'],
     'retail'      => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos'],
-    'all'         => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'walmart', 'ebay'],
+    'all'         => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'ebay'],
     default       => ['amazon', 'target', 'bestbuy', 'costco', 'homedepot', '6pm', 'zappos', 'ebay'],
 };
 
@@ -115,11 +115,11 @@ if (!$jsonMode) {
     $exp->execute();
     echo "✓ Expired: {$exp->rowCount()} old deals deactivated\n";
 
-    // Remove implausible list prices (fake inflated MSRPs or per-unit prices)
+    // Remove implausible list prices (fake MSRPs, per-unit prices)
     $fakeExp = $db->prepare("UPDATE deals SET is_active=0
-        WHERE is_active=1 AND original_price > sale_price * 10");
+        WHERE is_active=1 AND (original_price > sale_price * 8 OR sale_price < 7)");
     $fakeExp->execute();
-    echo "✓ Fake prices: {$fakeExp->rowCount()} implausible deals deactivated\n";
+    echo "✓ Fake/cheap: {$fakeExp->rowCount()} implausible deals deactivated\n";
 
     // Remove duplicate 6pm/zappos deals (same product in multiple colors)
     $dupExp = $db->exec("DELETE d1 FROM deals d1
@@ -127,9 +127,9 @@ if (!$jsonMode) {
         WHERE d1.store IN ('6pm', 'zappos') AND d1.is_active = 1");
     echo "✓ Duplicates: " . ($dupExp ?: 0) . " duplicate 6pm/zappos deals removed\n";
 
-    // Remove 'other' store deals (broken blog links, not direct retailer)
-    $otherExp = $db->exec("DELETE FROM deals WHERE store = 'other'");
-    echo "✓ Cleaned: " . ($otherExp ?: 0) . " 'other' store deals removed\n\n";
+    // Remove broken store deals (blog links, blocked retailers)
+    $cleanExp = $db->exec("DELETE FROM deals WHERE store IN ('other', 'walmart')");
+    echo "✓ Cleaned: " . ($cleanExp ?: 0) . " broken store deals removed\n\n";
 }
 
 // ── Scraper map ───────────────────────────────────────────────────────────────

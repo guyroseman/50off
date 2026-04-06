@@ -49,12 +49,12 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
         $tickerItems = [
             '🔥 New deals added every 3 hours',
             '✅ Every deal is 50%+ off — guaranteed',
-            '🛒 Amazon • Target • eBay • 6pm • Zappos • Walmart • Best Buy',
+            '🛒 Amazon • Target • eBay • 6pm • Best Buy',
             '⚡ Limited-time prices — act fast',
             '💰 Save hundreds on top brands',
             '🔥 New deals added every 3 hours',
             '✅ Every deal is 50%+ off — guaranteed',
-            '🛒 Amazon • Target • eBay • 6pm • Zappos • Walmart • Best Buy',
+            '🛒 Amazon • Target • eBay • 6pm • Best Buy',
             '⚡ Limited-time prices — act fast',
             '💰 Save hundreds on top brands',
         ];

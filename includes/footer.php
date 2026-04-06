@@ -26,8 +26,6 @@
                     <li><a href="/?store=target">🎯 Target</a></li>
                     <li><a href="/?store=ebay">🔴 eBay</a></li>
                     <li><a href="/?store=6pm">👠 6pm</a></li>
-                    <li><a href="/?store=zappos">👟 Zappos</a></li>
-                    <li><a href="/?store=walmart">🔵 Walmart</a></li>
                     <li><a href="/?store=bestbuy">🟡 Best Buy</a></li>
                 </ul>
             </div>
