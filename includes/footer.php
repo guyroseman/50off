@@ -73,13 +73,16 @@
         </div>
         <div id="chat-messages">
             <div class="chat-msg chat-bot">
-                Hey! I'm your deal assistant. Ask me anything — "find me shoe deals", "cheapest electronics", or "what's trending today?" 🔥
+                Hey! 👋 I'm your 50OFF deal assistant. Ask me things like:<br>
+                <em>"Show me shoe deals"</em> · <em>"Deals under $30"</em> · <em>"Best Amazon deals"</em>
             </div>
         </div>
         <div id="chat-suggestions">
-            <button onclick="sendChat('Show me the best deals today')">Best deals today</button>
-            <button onclick="sendChat('Find shoe deals')">Shoe deals</button>
-            <button onclick="sendChat('Cheapest electronics')">Electronics</button>
+            <button onclick="sendChat('Best deals right now')">🔥 Best deals</button>
+            <button onclick="sendChat('Show me shoe deals')">👟 Shoes</button>
+            <button onclick="sendChat('Cheapest electronics under $50')">📱 Electronics</button>
+            <button onclick="sendChat('Kitchen deals')">🍳 Kitchen</button>
+            <button onclick="sendChat('Amazon deals')">🛒 Amazon</button>
         </div>
         <form id="chat-form" onsubmit="handleChat(event)">
             <input type="text" id="chat-input" placeholder="Ask about deals…" autocomplete="off" maxlength="200">
