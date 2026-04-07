@@ -211,8 +211,15 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
                         placeholder="Search 50%+ deals…"
                         value="<?= h($searchQ) ?>"
                         autocomplete="off"
+                        enterkeyhint="search"
                     >
-                    <button type="submit" class="search-btn">Search</button>
+                    <!-- Desktop: text button. Mobile: icon-only button via CSS -->
+                    <button type="submit" class="search-btn" aria-label="Search">
+                        <svg class="search-btn-icon" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        <span class="search-btn-label">Search</span>
+                    </button>
                 </div>
             </form>
 
@@ -229,18 +236,24 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
                 <a href="/blog/" class="store-pill store-pill--blog <?= $isBlog ? 'active' : '' ?>">✍️ Blog</a>
             </nav>
 
-            <!-- Auth / account button (desktop) -->
-            <?php if ($_isLoggedIn): ?>
-            <a href="/account.php" class="header-saved-btn" aria-label="My account">
-                👤 <?= h($_currentUser['name'] ?: 'Account') ?>
+            <!-- Account button — desktop shows text, mobile shows icon -->
+            <?php if ($_isLoggedIn):
+                $initials = strtoupper(mb_substr($_currentUser['name'] ?: $_currentUser['email'], 0, 1));
+            ?>
+            <a href="/account.php" class="header-account-btn header-account-btn--in" aria-label="My account">
+                <span class="header-account-avatar"><?= h($initials) ?></span>
+                <span class="header-account-label"><?= h($_currentUser['name'] ?: 'Account') ?></span>
             </a>
             <?php else: ?>
-            <a href="/login.php" class="header-saved-btn" aria-label="Log in">
-                Log In
+            <a href="/login.php" class="header-account-btn header-account-btn--out" aria-label="Log in">
+                <svg class="header-account-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span class="header-account-label">Log In</span>
             </a>
             <?php endif; ?>
 
-            <!-- Mobile hamburger -->
+            <!-- Mobile hamburger (≥1024 only, bottom nav handles mobile) -->
             <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false">
                 <span></span><span></span><span></span>
             </button>

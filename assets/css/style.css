@@ -94,6 +94,7 @@ button { font-family: inherit; cursor: pointer; }
     display: flex;
     align-items: center;
 }
+@media (max-width: 768px) { .ticker-bar { display: none; } }
 .ticker-track {
     display: inline-flex;
     gap: 0;
@@ -123,11 +124,9 @@ button { font-family: inherit; cursor: pointer; }
     backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
     box-shadow: var(--shadow-xs);
-    transition: box-shadow .3s, padding .3s;
+    transition: box-shadow .3s;
 }
-.site-header.scrolled {
-    box-shadow: 0 2px 16px rgba(0,0,0,.08);
-}
+.site-header.scrolled { box-shadow: 0 2px 16px rgba(0,0,0,.08); }
 
 .header-inner {
     display: flex;
@@ -137,7 +136,7 @@ button { font-family: inherit; cursor: pointer; }
     flex-wrap: nowrap;
 }
 
-/* Logo — matches Figma DH logo style */
+/* ── Logo ── */
 .logo {
     display: flex;
     align-items: center;
@@ -146,33 +145,18 @@ button { font-family: inherit; cursor: pointer; }
     text-decoration: none;
 }
 .logo-icon {
-    width: 36px;
-    height: 36px;
+    width: 36px; height: 36px;
     background: linear-gradient(135deg, var(--orange), #FF8C38);
     border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .85rem;
-    font-weight: 800;
-    color: #fff;
-    letter-spacing: -.02em;
-    box-shadow: var(--shadow-orange);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .85rem; font-weight: 800; color: #fff;
+    letter-spacing: -.02em; box-shadow: var(--shadow-orange);
+    flex-shrink: 0;
 }
 .logo-text-wrap { display: flex; flex-direction: column; line-height: 1; }
-.logo-name {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--ink);
-    letter-spacing: -.02em;
-}
+.logo-name { font-size: 1.1rem; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
 .logo-off { color: var(--orange); }
-.logo-tag {
-    font-size: .65rem;
-    color: var(--slate);
-    font-weight: 400;
-    margin-top: 1px;
-}
+.logo-tag { font-size: .65rem; color: var(--slate); font-weight: 400; margin-top: 1px; }
 
 /* Search — matches Figma rounded search bar */
 .search-form {
@@ -213,20 +197,47 @@ button { font-family: inherit; cursor: pointer; }
     min-width: 0;
 }
 .search-input::placeholder { color: var(--text-dim); }
+/* Desktop search button: text label */
 .search-btn {
     background: var(--orange);
     border: none;
-    padding: .5rem 1.1rem;
-    margin: 3px;
+    margin: 4px;
     border-radius: var(--radius-xl);
     color: #fff;
     font-weight: 600;
     font-size: .85rem;
-    transition: background .2s, transform .1s;
+    transition: background .2s;
     white-space: nowrap;
     flex-shrink: 0;
+    display: flex; align-items: center; gap: .35rem;
+    padding: .45rem 1.1rem;
+    cursor: pointer;
 }
 .search-btn:hover { background: var(--orange-hover); }
+.search-btn-icon { display: none; width: 17px; height: 17px; flex-shrink: 0; }
+.search-btn-label { /* visible on desktop */ }
+
+/* ── Account button ── */
+.header-account-btn {
+    display: flex; align-items: center; gap: .45rem;
+    padding: .35rem .85rem; border-radius: var(--radius-xl);
+    font-size: .82rem; font-weight: 600;
+    border: 1.5px solid var(--border); background: var(--white);
+    text-decoration: none; flex-shrink: 0; white-space: nowrap;
+    transition: all var(--duration-fast);
+}
+.header-account-btn--in { color: var(--orange); border-color: var(--orange); }
+.header-account-btn--in:hover { background: var(--orange-light); }
+.header-account-btn--out { color: var(--slate); }
+.header-account-btn--out:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-light); }
+.header-account-avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--orange); color: #fff;
+    font-size: .72rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.header-account-icon { width: 18px; height: 18px; flex-shrink: 0; }
 
 /* Store nav pills */
 .store-nav {
@@ -942,46 +953,71 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ─── RESPONSIVE ────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   RESPONSIVE — tablet → phone
+   Header design philosophy:
+   Desktop: [Logo+tag] [──── search ────] [store pills] [Account text]
+   Mobile:  [50 icon ] [──── search ──── 🔍] [avatar/person icon]
+   Bottom nav handles all navigation on mobile — no hamburger needed.
+───────────────────────────────────────────────────────────────────────────── */
+
 @media (max-width: 1024px) {
     .store-nav { display: none; }
     .mobile-menu-btn { display: flex; }
-    .header-saved-btn { display: none; }
+    /* Desktop account btn stays visible on tablet */
     .footer-inner { grid-template-columns: 1fr 1fr; }
     .deal-detail-grid { grid-template-columns: 1fr; }
-    /* Detail page: cap image height on tablet so it doesn't dominate */
-    .deal-detail-img-wrap { max-width: 480px; margin: 0 auto; }
+    .deal-detail-img-wrap { max-width: 460px; margin: 0 auto; }
 }
 
 @media (max-width: 768px) {
-    /* Bottom nav handles all nav — hamburger hidden */
+    /* ── Hide hamburger — bottom nav handles navigation ── */
     .mobile-menu-btn { display: none !important; }
 
-    /* Header: single row, logo + search, no wrap */
-    .header-inner {
-        height: 54px;
-        gap: .6rem;
-        flex-wrap: nowrap;
-        padding: 0;
-    }
-    .logo-tag { display: none; }
-    .logo-name { font-size: .92rem; }
-    .logo-icon { width: 28px; height: 28px; font-size: .72rem; flex-shrink: 0; }
-    .logo { gap: .4rem; flex-shrink: 0; }
+    /* ── Header: compact single row ── */
+    .header-inner { height: 52px; gap: .5rem; flex-wrap: nowrap; }
+
+    /* Logo: icon only — text hidden to give search maximum space */
+    .logo-text-wrap { display: none; }
+    .logo-icon { width: 34px; height: 34px; font-size: .82rem; border-radius: 8px; }
+
+    /* Search: fills all remaining space */
     .search-form { flex: 1; min-width: 0; max-width: none; }
-    .search-btn { padding: .45rem .7rem; font-size: .78rem; white-space: nowrap; }
-    .search-input { font-size: .85rem; padding: .5rem .55rem; min-width: 0; }
+    .search-wrap { padding-left: .6rem; }
+    .search-input { font-size: .88rem; padding: .48rem .5rem; min-width: 0; }
+    /* Button: icon-only circle on mobile */
+    .search-btn {
+        width: 34px; height: 34px;
+        padding: 0; margin: 4px;
+        border-radius: 50%;
+        justify-content: center;
+    }
+    .search-btn-label { display: none; }
+    .search-btn-icon { display: block; }
+    .search-icon { display: none; } /* hide input's magnifier — redundant now */
 
-    /* Cat pill bar: sticky below header so user keeps context while scrolling */
-    .cat-pill-bar { position: sticky; top: 54px; z-index: 90; }
+    /* Account button: icon only on mobile */
+    .header-account-btn {
+        padding: 0;
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .header-account-label { display: none; }
+    .header-account-avatar { width: 28px; height: 28px; font-size: .78rem; }
+    .header-account-icon { width: 20px; height: 20px; }
 
-    /* 2-column grid with comfortable gap */
+    /* ── Cat pill bar: sticky so user keeps context while scrolling ── */
+    .cat-pill-bar { position: sticky; top: 52px; z-index: 90; }
+    .cat-pill { min-height: 36px; padding: .4rem .9rem; font-size: .78rem; }
+
+    /* ── Grid ── */
     .deals-grid { grid-template-columns: repeat(2, 1fr); gap: .75rem; }
-
-    /* Hot deals carousel cards slightly smaller */
     .hot-deals-scroll .deal-card { width: 210px; }
 
-    /* Toast: above bottom nav, respecting safe-area */
-    #toast-container { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); right: .75rem; }
+    /* ── Toast above bottom nav ── */
+    #toast-container { bottom: calc(62px + env(safe-area-inset-bottom, 0px)); right: .75rem; }
 
     .hero-banner { padding: 1.5rem 1rem 1rem; }
     .footer-inner { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
@@ -989,53 +1025,43 @@ button { font-family: inherit; cursor: pointer; }
 
 @media (max-width: 480px) {
     .container { padding: 0 .75rem; }
+    .header-inner { height: 48px; }
+    .logo-icon { width: 30px; height: 30px; font-size: .75rem; }
+    .search-btn { width: 30px; height: 30px; margin: 3px; }
+    .header-account-btn { width: 32px; height: 32px; }
+    .header-account-avatar { width: 26px; height: 26px; font-size: .72rem; }
 
-    /* Header stays single row even on smallest phones — no wrap */
-    .header-inner { flex-wrap: nowrap; height: 50px; }
-    .logo-icon { width: 26px; height: 26px; font-size: .68rem; }
-    .logo-name { font-size: .85rem; }
+    /* Cat bar offset matches 48px header */
+    .cat-pill-bar { top: 48px; }
+    .cat-pill { min-height: 34px; padding: .35rem .8rem; font-size: .75rem; }
 
-    /* Sticky cat bar offset matches header height */
-    .cat-pill-bar { top: 50px; }
-
-    /* 2-col grid, tighter gap */
+    /* Grid */
     .deals-grid { grid-template-columns: repeat(2, 1fr); gap: .55rem; }
 
-    /* Card body: tighter on small phones */
-    .deal-card-body { padding: .65rem .7rem; gap: .28rem; }
-    .deal-title { font-size: .79rem; -webkit-line-clamp: 2; }
+    /* Card */
+    .deal-card-body { padding: .6rem .65rem; gap: .25rem; }
+    .deal-title { font-size: .79rem; }
     .sale-price { font-size: 1.1rem; }
     .orig-price { font-size: .72rem; }
-    .you-save { font-size: .62rem; padding: .07rem .32rem; }
-    .deal-btn { font-size: .78rem; padding: .5rem .6rem; border-radius: var(--radius-sm); }
-    .deal-store-link { font-size: .68rem; }
-    .deal-cat-link { font-size: .63rem; padding: .08rem .38rem; }
+    .you-save { font-size: .62rem; padding: .06rem .3rem; }
+    .deal-btn { font-size: .77rem; padding: .48rem .55rem; border-radius: var(--radius-sm); }
+    .deal-store-link { font-size: .67rem; }
+    .deal-cat-link { font-size: .62rem; }
+    .deal-save-btn { width: 30px; height: 30px; font-size: .82rem; bottom: 7px; right: 7px; }
+    .discount-badge { font-size: .67rem; padding: .16rem .48rem; }
+    .pct-badge { font-size: .68rem; padding: .16rem .45rem; }
+    .deal-timer { font-size: .63rem; padding: .15rem .42rem; }
+    .deal-prices { gap: .28rem; }
 
-    /* Save heart: keep 44px touch target via padding trick */
-    .deal-save-btn {
-        width: 32px; height: 32px; font-size: .85rem;
-        /* Expand tap area without changing visual size */
-        padding: 0;
-    }
+    /* Carousel */
+    .hot-deals-scroll .deal-card { width: 172px; }
 
-    /* Badges: slightly smaller on tiny cards */
-    .discount-badge { font-size: .68rem; padding: .18rem .5rem; }
-    .pct-badge { font-size: .7rem; padding: .18rem .48rem; }
-    .deal-timer { font-size: .64rem; padding: .16rem .45rem; }
+    /* Toast */
+    #toast-container { bottom: calc(62px + env(safe-area-inset-bottom, 0px)); right: .5rem; }
 
-    /* Price row: allow wrapping so "Save $X" doesn't overflow */
-    .deal-prices { gap: .3rem; }
+    /* Chat */
+    #chat-panel { width: calc(100vw - 20px); right: -4px; }
 
-    /* Hot carousel */
-    .hot-deals-scroll .deal-card { width: 175px; }
-
-    /* Toast above bottom nav */
-    #toast-container { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); right: .5rem; }
-
-    /* Chat panel: full width minus small margin */
-    #chat-panel { width: calc(100vw - 24px); right: -4px; }
-
-    /* Misc */
     .section-nav { display: none; }
     .footer-inner { grid-template-columns: 1fr; }
 }
@@ -1231,16 +1257,7 @@ button { font-family: inherit; cursor: pointer; }
     to { opacity: 0; transform: translateX(16px); }
 }
 
-/* ─── HEADER SAVED BUTTON ────────────────────────────────────────────────────── */
-.header-saved-btn {
-    display: flex; align-items: center; gap: .35rem;
-    padding: .35rem .85rem; border-radius: var(--radius-xl);
-    font-size: .78rem; font-weight: 500; color: var(--slate);
-    background: var(--white); border: 1.5px solid var(--border);
-    cursor: pointer; transition: all var(--duration-fast);
-    white-space: nowrap; flex-shrink: 0; text-decoration: none;
-}
-.header-saved-btn:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-light); }
+/* .header-saved-btn replaced by .header-account-btn above */
 
 /* ─── TRENDING / FLASH BADGES ────────────────────────────────────────────────── */
 .badge-trending { background: linear-gradient(135deg, #F59E0B, #EF4444); color: #fff; }
@@ -1332,7 +1349,7 @@ button { font-family: inherit; cursor: pointer; }
 .store-link-card:hover { border-color: var(--orange); color: var(--orange); box-shadow: var(--shadow); }
 .store-link-card .cnt { font-size: .72rem; font-weight: 400; color: var(--slate); }
 
-/* ─── IMPROVED MOBILE CARD SIZING (480px overrides merged above) ─────────────── */
+/* ─── MISC SMALL-SCREEN OVERRIDES ────────────────────────────────────────────── */
 @media (max-width: 480px) {
     .verified-badge { font-size: .63rem; padding: .18rem .45rem; }
     .price-history-link { display: none; }
