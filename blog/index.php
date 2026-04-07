@@ -211,33 +211,41 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
 
 <div class="blog-cat-tabs">
 <?php foreach ($categories as $slug => $label): ?>
-<a href="/blog/<?= $slug ? '?cat='.urlencode($slug) : '' ?>" class="blog-cat-tab <?= $catFilter===$slug?'active':'' ?>"><?= h($label) ?></a>
+<a href="/blog/<?= $slug ? '?cat='.urlencode((string)$slug) : '' ?>" class="blog-cat-tab <?= $catFilter===$slug?'active':'' ?>"><?= h((string)$label) ?></a>
 <?php endforeach; ?>
 </div>
 
 <!-- Featured post (first post, no filter, page 1) -->
-<?php if ($featuredPost): ?>
+<?php if ($featuredPost):
+    $fCat   = (string)($featuredPost['category'] ?? 'guide');
+    $fSlug  = (string)($featuredPost['slug']     ?? '');
+    $fTitle = (string)($featuredPost['title']    ?? 'Untitled');
+    $fImg   = (string)($featuredPost['og_image'] ?? '');
+    $fExc   = (string)($featuredPost['excerpt']  ?? '');
+    $fPub   = (string)($featuredPost['published_at'] ?? date('c'));
+    $fViews = (int)($featuredPost['view_count'] ?? 0);
+?>
 <div class="blog-featured">
-    <?php if ($featuredPost['og_image']): ?>
-    <img src="<?= h($featuredPost['og_image']) ?>" alt="<?= h($featuredPost['title']) ?>" class="blog-featured-img" loading="eager">
+    <?php if ($fImg): ?>
+    <img src="<?= h($fImg) ?>" alt="<?= h($fTitle) ?>" class="blog-featured-img" loading="eager">
     <?php else:
-        $fEmoji = $featuredPost['category'] === 'roundup' ? '🔥' : '📖';
-        $fCls   = getBlogPlaceholderClass($featuredPost['slug'], $featuredPost['category']);
+        $fEmoji = $fCat === 'roundup' ? '🔥' : '📖';
+        $fCls   = getBlogPlaceholderClass($fSlug, $fCat);
     ?>
     <div class="blog-featured-placeholder <?= $fCls ?>">
         <span class="blog-featured-placeholder-icon"><?= $fEmoji ?></span>
-        <span class="blog-featured-placeholder-label"><?= h(ucfirst($featuredPost['category'])) ?></span>
+        <span class="blog-featured-placeholder-label"><?= h(ucfirst($fCat)) ?></span>
     </div>
     <?php endif; ?>
     <div class="blog-featured-body">
-        <span class="blog-featured-label">⭐ Featured Post · <?= h(ucfirst($featuredPost['category'])) ?></span>
-        <a href="/blog/<?= h($featuredPost['slug']) ?>" class="blog-featured-title"><?= h($featuredPost['title']) ?></a>
-        <p class="blog-featured-excerpt"><?= h(mb_substr($featuredPost['excerpt']??'', 0, 180)) ?>…</p>
+        <span class="blog-featured-label">⭐ Featured Post · <?= h(ucfirst($fCat)) ?></span>
+        <a href="/blog/<?= h($fSlug) ?>" class="blog-featured-title"><?= h($fTitle) ?></a>
+        <p class="blog-featured-excerpt"><?= h(mb_substr($fExc, 0, 180)) ?>…</p>
         <div class="blog-featured-meta">
-            <span>📅 <?= date('F j, Y', strtotime($featuredPost['published_at'])) ?></span>
-            <span>👁 <?= number_format($featuredPost['view_count']) ?> views</span>
+            <span>📅 <?= date('F j, Y', strtotime($fPub) ?: time()) ?></span>
+            <span>👁 <?= number_format($fViews) ?> views</span>
         </div>
-        <a href="/blog/<?= h($featuredPost['slug']) ?>" class="blog-featured-cta">Read Guide → </a>
+        <a href="/blog/<?= h($fSlug) ?>" class="blog-featured-cta">Read Guide → </a>
     </div>
 </div>
 <?php endif; ?>
@@ -247,33 +255,39 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
 <?php elseif (!empty($posts)): ?>
 <div class="blog-grid">
 <?php foreach ($posts as $post):
-    $emoji    = $post['category']==='roundup' ? '🔥' : '📖';
-    $words    = str_word_count(strip_tags($post['excerpt']??''));
-    $readMins = max(3, (int)round($words * 10 / 220)); // Rough estimate from excerpt
+    $pCat   = (string)($post['category'] ?? 'guide');
+    $pSlug  = (string)($post['slug']     ?? '');
+    $pTitle = (string)($post['title']    ?? 'Untitled');
+    $pImg   = (string)($post['og_image'] ?? '');
+    $pExc   = (string)($post['excerpt']  ?? '');
+    $pPub   = (string)($post['published_at'] ?? date('c'));
+    $emoji    = $pCat === 'roundup' ? '🔥' : '📖';
+    $words    = str_word_count(strip_tags($pExc));
+    $readMins = max(3, (int)round($words * 10 / 220));
 ?>
 <article class="blog-card" itemscope itemtype="https://schema.org/Article">
-    <meta itemprop="datePublished" content="<?= date('c', strtotime($post['published_at'])) ?>">
+    <meta itemprop="datePublished" content="<?= date('c', strtotime($pPub) ?: time()) ?>">
     <meta itemprop="author" content="50OFF Team">
-    <?php if ($post['og_image']): ?>
-    <img src="<?= h($post['og_image']) ?>" alt="<?= h($post['title']) ?>" class="blog-card-img" loading="lazy" itemprop="image">
+    <?php if ($pImg): ?>
+    <img src="<?= h($pImg) ?>" alt="<?= h($pTitle) ?>" class="blog-card-img" loading="lazy" itemprop="image">
     <?php else:
-        $phClass = getBlogPlaceholderClass($post['slug'], $post['category']);
+        $phClass = getBlogPlaceholderClass($pSlug, $pCat);
     ?>
     <div class="blog-card-img-placeholder <?= $phClass ?>">
         <span class="ph-icon"><?= $emoji ?></span>
-        <span class="ph-label"><?= h(ucfirst($post['category'])) ?></span>
+        <span class="ph-label"><?= h(ucfirst($pCat)) ?></span>
     </div>
     <?php endif; ?>
     <div class="blog-card-body">
         <div class="blog-card-cat">
-            <span><?= h(ucfirst($post['category'])) ?></span>
+            <span><?= h(ucfirst($pCat)) ?></span>
             <span class="blog-card-read-time">⏱ ~<?= $readMins ?>+ min</span>
         </div>
-        <a href="/blog/<?= h($post['slug']) ?>" class="blog-card-title" itemprop="name headline"><?= h($post['title']) ?></a>
-        <p class="blog-card-excerpt"><?= h(mb_substr($post['excerpt']??'',0,125)) ?>…</p>
+        <a href="/blog/<?= h($pSlug) ?>" class="blog-card-title" itemprop="name headline"><?= h($pTitle) ?></a>
+        <p class="blog-card-excerpt"><?= h(mb_substr($pExc, 0, 125)) ?>…</p>
         <div class="blog-card-footer">
-            <span class="blog-card-date"><?= date('M j, Y',strtotime($post['published_at'])) ?></span>
-            <a href="/blog/<?= h($post['slug']) ?>" class="blog-read-more">Read more →</a>
+            <span class="blog-card-date"><?= date('M j, Y', strtotime($pPub) ?: time()) ?></span>
+            <a href="/blog/<?= h($pSlug) ?>" class="blog-read-more">Read more →</a>
         </div>
     </div>
 </article>
