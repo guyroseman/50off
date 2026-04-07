@@ -190,14 +190,9 @@ include 'includes/header.php';
 
 </div><!-- /.container -->
 
-<script>
-// Carousel scroll
-const hotScroll = document.getElementById('hot-deals-scroll');
-document.getElementById('hot-prev')?.addEventListener('click', () => hotScroll?.scrollBy({left: -280, behavior: 'smooth'}));
-document.getElementById('hot-next')?.addEventListener('click', () => hotScroll?.scrollBy({left: 280, behavior: 'smooth'}));
-</script>
-
 <?php
+// Carousel scroll handlers live in main.js — do NOT redeclare hotScroll here
+// (a const redeclaration would throw a SyntaxError that aborts main.js entirely)
 function updatePageParam(int $p): string {
     $params = $_GET;
     $params['page'] = $p;
