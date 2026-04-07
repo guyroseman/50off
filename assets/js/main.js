@@ -38,62 +38,111 @@ drawer?.addEventListener('touchend', e => {
     if (e.changedTouches[0].clientX - drawerTouchStartX > 60) closeDrawer();
 }, { passive: true });
 
-// ─── Save System (server-based, requires login) ──────────────────────────────
+// ─── Save System (server-based) ──────────────────────────────────────────────
 // window.__isLoggedIn and window.__savedIds are set by PHP in the page
-let _savedSet = new Set(window.__savedIds || []);
+let _savedSet = new Set((window.__savedIds || []).map(String));
+let _pendingDealId = null; // Deal to save after successful login
 
+// Event delegation: works for cards added later (infinite scroll)
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.deal-save-btn, .deal-detail-save-text');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    handleSaveClick(btn);
+}, true); // Use capture so we beat the <a> link inside the card
+
+// Backwards-compat: any inline onclick="toggleSave(this, event)" still works
 function toggleSave(btn, event) {
-    event.preventDefault();
-    event.stopPropagation();
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    handleSaveClick(btn);
+}
 
-    // Not logged in → show toast then redirect to login
+function handleSaveClick(btn) {
+    const id = String(btn.dataset.id || '');
+    if (!id) { console.warn('[save] no data-id on button'); return; }
+
+    // Not logged in → show inline modal (no redirect)
     if (!window.__isLoggedIn) {
-        showToast('Log in to save deals ♡', 'default');
-        setTimeout(() => {
-            const returnUrl = encodeURIComponent(location.pathname + location.search);
-            location.href = '/login.php?redirect=' + returnUrl;
-        }, 800);
+        _pendingDealId = id;
+        openLoginModal();
         return;
     }
 
-    const id = String(btn.dataset.id);
     const isSaved = _savedSet.has(id);
-
     if (isSaved) {
-        // Unsave — optimistic update, revert on failure
+        unsaveDeal(id, btn);
+    } else {
+        saveDeal(id, btn);
+    }
+}
+
+function saveDeal(id, btn) {
+    // Optimistic update
+    _savedSet.add(id);
+    markBtn(btn, true);
+    showToast('♥ Deal saved!', 'save');
+
+    fetch('/api/auth.php', {
+        method:      'POST',
+        headers:     {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body:        JSON.stringify({ action: 'save', deal_id: parseInt(id, 10) }),
+    })
+    .then(r => r.json().catch(() => ({ ok: false, error: 'Bad response' })))
+    .then(data => {
+        if (!data.ok) {
+            _savedSet.delete(id);
+            markBtn(btn, false);
+            if (data.error && data.error.includes('Login')) {
+                showToast('Please log in to save', 'default');
+                window.__isLoggedIn = false;
+                openLoginModal();
+            } else {
+                showToast('Could not save: ' + (data.error || 'try again'), 'default');
+            }
+        }
+    })
+    .catch(err => {
+        console.error('[save] network error', err);
         _savedSet.delete(id);
         markBtn(btn, false);
-        showToast('Removed from saved deals', 'default');
-        fetch('/api/auth.php', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ action: 'unsave', deal_id: parseInt(id) }),
-        }).then(r => r.json()).then(data => {
-            if (!data.ok) { _savedSet.add(id); markBtn(btn, true); showToast('Could not remove. Try again.', 'default'); }
-        }).catch(() => { _savedSet.add(id); markBtn(btn, true); showToast('Network error. Try again.', 'default'); });
-    } else {
-        // Save — optimistic update, revert on failure
+        showToast('Network error. Try again.', 'default');
+    });
+}
+
+function unsaveDeal(id, btn) {
+    _savedSet.delete(id);
+    markBtn(btn, false);
+    showToast('Removed from saved', 'default');
+
+    fetch('/api/auth.php', {
+        method:      'POST',
+        headers:     {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body:        JSON.stringify({ action: 'unsave', deal_id: parseInt(id, 10) }),
+    })
+    .then(r => r.json().catch(() => ({ ok: false })))
+    .then(data => {
+        if (!data.ok) {
+            _savedSet.add(id);
+            markBtn(btn, true);
+            showToast('Could not remove. Try again.', 'default');
+        }
+    })
+    .catch(() => {
         _savedSet.add(id);
         markBtn(btn, true);
-        showToast('♥ Deal saved!', 'save');
-        fetch('/api/auth.php', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ action: 'save', deal_id: parseInt(id) }),
-        }).then(r => r.json()).then(data => {
-            if (!data.ok) { _savedSet.delete(id); markBtn(btn, false); showToast('Could not save. Try again.', 'default'); }
-        }).catch(() => { _savedSet.delete(id); markBtn(btn, false); showToast('Network error. Try again.', 'default'); });
-    }
+        showToast('Network error. Try again.', 'default');
+    });
 }
 
 function markBtn(btn, saved) {
     if (btn.classList.contains('deal-detail-save-text')) {
-        // Text button on detail page
         const label = btn.querySelector('#detail-save-label') || btn;
         label.textContent = saved ? '♥ Saved' : '♡ Save Deal';
         btn.classList.toggle('saved', saved);
     } else {
-        // Heart icon button on cards
         btn.textContent = saved ? '♥' : '♡';
         btn.classList.toggle('saved', saved);
     }
@@ -101,20 +150,128 @@ function markBtn(btn, saved) {
 
 function syncAllHearts() {
     document.querySelectorAll('.deal-save-btn, .deal-detail-save-text').forEach(btn => {
-        const id = String(btn.dataset.id);
+        const id = String(btn.dataset.id || '');
         if (id) markBtn(btn, _savedSet.has(id));
     });
 }
 
+// ─── Inline Login Modal (no redirect) ────────────────────────────────────────
+function openLoginModal() {
+    if (document.getElementById('save-login-modal')) {
+        document.getElementById('save-login-modal').classList.add('open');
+        return;
+    }
+    const modal = document.createElement('div');
+    modal.id = 'save-login-modal';
+    modal.innerHTML = `
+        <div class="slm-backdrop" onclick="closeLoginModal()"></div>
+        <div class="slm-sheet" role="dialog" aria-modal="true" aria-labelledby="slm-title">
+            <button class="slm-close" onclick="closeLoginModal()" aria-label="Close">✕</button>
+            <div class="slm-icon">♡</div>
+            <h2 id="slm-title">Save this deal</h2>
+            <p>Log in or sign up free to save deals to your wishlist.</p>
+            <div class="slm-error" id="slm-error" style="display:none"></div>
+            <form id="slm-form" onsubmit="submitLoginModal(event)">
+                <input type="email" id="slm-email" placeholder="you@email.com" required autocomplete="email">
+                <input type="password" id="slm-pass" placeholder="Password (6+ chars)" required minlength="6" autocomplete="current-password">
+                <button type="submit" class="slm-btn slm-btn-primary" id="slm-submit">Log In &amp; Save</button>
+                <button type="button" class="slm-btn slm-btn-secondary" onclick="switchToSignup()" id="slm-switch">No account? Sign up free</button>
+            </form>
+            <p class="slm-fine">By signing up, you agree to our terms.</p>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('open'));
+    setTimeout(() => document.getElementById('slm-email')?.focus(), 250);
+}
+
+function closeLoginModal() {
+    const modal = document.getElementById('save-login-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    setTimeout(() => modal.remove(), 250);
+    _pendingDealId = null;
+}
+
+let _signupMode = false;
+function switchToSignup() {
+    _signupMode = !_signupMode;
+    const submit = document.getElementById('slm-submit');
+    const swap   = document.getElementById('slm-switch');
+    submit.textContent = _signupMode ? 'Sign Up &amp; Save' : 'Log In &amp; Save';
+    swap.textContent   = _signupMode ? 'Already have an account? Log in' : 'No account? Sign up free';
+    document.getElementById('slm-pass').setAttribute('autocomplete', _signupMode ? 'new-password' : 'current-password');
+}
+
+async function submitLoginModal(e) {
+    e.preventDefault();
+    const email  = document.getElementById('slm-email').value.trim();
+    const pass   = document.getElementById('slm-pass').value;
+    const error  = document.getElementById('slm-error');
+    const submit = document.getElementById('slm-submit');
+    error.style.display = 'none';
+    submit.disabled = true;
+    submit.textContent = 'Working…';
+
+    try {
+        const res = await fetch('/api/auth.php', {
+            method:      'POST',
+            headers:     {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body:        JSON.stringify({
+                action:   _signupMode ? 'signup' : 'login',
+                email:    email,
+                password: pass,
+            }),
+        });
+        const data = await res.json();
+
+        if (!data.ok) {
+            error.textContent = data.error || 'Something went wrong';
+            error.style.display = 'block';
+            submit.disabled = false;
+            submit.textContent = _signupMode ? 'Sign Up & Save' : 'Log In & Save';
+            return;
+        }
+
+        // Success — mark as logged in
+        window.__isLoggedIn = true;
+
+        // Save the pending deal
+        if (_pendingDealId) {
+            const btn = document.querySelector(`.deal-save-btn[data-id="${_pendingDealId}"], .deal-detail-save-text[data-id="${_pendingDealId}"]`);
+            saveDeal(_pendingDealId, btn || { dataset: { id: _pendingDealId }, classList: { contains: () => false, toggle: () => {} } });
+            _pendingDealId = null;
+        }
+
+        closeLoginModal();
+        showToast('Welcome! ♥ Deal saved.', 'save');
+    } catch (err) {
+        error.textContent = 'Network error — please try again';
+        error.style.display = 'block';
+        submit.disabled = false;
+        submit.textContent = _signupMode ? 'Sign Up & Save' : 'Log In & Save';
+    }
+}
+
 // ─── Toast Notifications ───────────────────────────────────────────────────────
-const toastContainer = document.getElementById('toast-container');
+function getToastContainer() {
+    let c = document.getElementById('toast-container');
+    if (!c) {
+        c = document.createElement('div');
+        c.id = 'toast-container';
+        c.setAttribute('aria-live', 'polite');
+        document.body.appendChild(c);
+    }
+    return c;
+}
 
 function showToast(msg, type = 'default', duration = 3000) {
-    if (!toastContainer) return;
+    const container = getToastContainer();
     const t = document.createElement('div');
     t.className = `toast${type === 'success' ? ' toast-success' : type === 'deal' ? ' toast-deal' : type === 'save' ? ' toast-save' : ''}`;
     if (msg.includes('<')) t.innerHTML = msg; else t.textContent = msg;
-    toastContainer.appendChild(t);
+    container.appendChild(t);
     setTimeout(() => {
         t.classList.add('removing');
         t.addEventListener('animationend', () => t.remove());

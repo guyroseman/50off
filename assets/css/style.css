@@ -1279,6 +1279,101 @@ button { font-family: inherit; cursor: pointer; }
 
 /* .header-saved-btn replaced by .header-account-btn above */
 
+/* ─── INLINE SAVE LOGIN MODAL ──────────────────────────────────────────────── */
+#save-login-modal {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+}
+#save-login-modal.open { pointer-events: auto; }
+.slm-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.55);
+    opacity: 0; transition: opacity .25s ease;
+    backdrop-filter: blur(4px);
+}
+#save-login-modal.open .slm-backdrop { opacity: 1; }
+.slm-sheet {
+    position: relative; z-index: 1;
+    background: #fff; border-radius: 20px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding: 2rem 1.75rem 1.5rem;
+    text-align: center;
+    box-shadow: 0 24px 80px rgba(0,0,0,.25);
+    transform: translateY(20px) scale(.96);
+    opacity: 0;
+    transition: transform .28s cubic-bezier(.22,.61,.36,1), opacity .25s ease;
+}
+#save-login-modal.open .slm-sheet { transform: translateY(0) scale(1); opacity: 1; }
+.slm-close {
+    position: absolute; top: .85rem; right: 1rem;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #f3f4f6; border: none; color: #6b7280;
+    font-size: 1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+}
+.slm-close:hover { background: #e5e7eb; color: #111; }
+.slm-icon {
+    font-size: 2.5rem; line-height: 1;
+    color: var(--red); margin-bottom: .5rem;
+    animation: heartBeat 1.2s ease infinite;
+}
+@keyframes heartBeat {
+    0%, 100% { transform: scale(1); }
+    20%, 60% { transform: scale(1.15); }
+    40%, 80% { transform: scale(1.05); }
+}
+.slm-sheet h2 {
+    font-size: 1.35rem; font-weight: 800;
+    color: #111; margin: .25rem 0 .35rem;
+}
+.slm-sheet p {
+    font-size: .88rem; color: #6b7280;
+    margin: 0 0 1.25rem; line-height: 1.5;
+}
+.slm-error {
+    background: var(--red-light); color: var(--red);
+    border: 1px solid #FACDD0; border-radius: 8px;
+    padding: .55rem .75rem; font-size: .82rem;
+    margin-bottom: .85rem;
+}
+#slm-form { display: flex; flex-direction: column; gap: .65rem; }
+#slm-form input {
+    width: 100%; padding: .8rem 1rem;
+    border: 2px solid var(--border); border-radius: 10px;
+    font-size: .95rem; outline: none;
+    transition: border-color .18s;
+    -webkit-appearance: none;
+}
+#slm-form input:focus { border-color: var(--orange); }
+.slm-btn {
+    width: 100%; padding: .85rem 1rem;
+    border: none; border-radius: 10px;
+    font-size: .95rem; font-weight: 700;
+    cursor: pointer; transition: all .2s;
+    font-family: inherit;
+}
+.slm-btn-primary {
+    background: linear-gradient(135deg, var(--orange), #ff8533);
+    color: #fff;
+    margin-top: .25rem;
+}
+.slm-btn-primary:hover { box-shadow: 0 6px 20px rgba(255,107,0,.3); transform: translateY(-1px); }
+.slm-btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.slm-btn-secondary {
+    background: transparent; color: var(--orange);
+    margin-top: .25rem; font-weight: 600; font-size: .85rem;
+    padding: .5rem;
+}
+.slm-btn-secondary:hover { text-decoration: underline; }
+.slm-fine {
+    font-size: .72rem; color: #9ca3af;
+    margin-top: .85rem; margin-bottom: 0;
+}
+
 /* ─── TRENDING / FLASH BADGES ────────────────────────────────────────────────── */
 .badge-trending { background: linear-gradient(135deg, #F59E0B, #EF4444); color: #fff; }
 .badge-flash { background: linear-gradient(135deg, var(--orange), #FF3D3D); color: #fff; animation: flashPulse 1.8s infinite; }
