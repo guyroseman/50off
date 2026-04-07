@@ -508,27 +508,28 @@ button { font-family: inherit; cursor: pointer; }
     border-color: rgba(255,107,0,.15);
 }
 
-/* Image area */
+/* Image area — robust cross-browser portrait/landscape fix */
 .deal-card-img-wrap {
     position: relative;
     aspect-ratio: 1 / 1;
     background: var(--white);
     overflow: hidden;
 }
-/* <a> must fill the container so height:100% on img resolves correctly */
+/* Absolutely position <a> so it fills the container regardless of intrinsic content size.
+   This is the only reliable way to make height:100% work on img in all browsers. */
 .deal-card-img-wrap > a {
+    position: absolute;
+    inset: 0;
     display: block;
-    width: 100%;
-    height: 100%;
 }
 .deal-card-img {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    padding: 12px;
+    padding: 10px;
     transition: transform var(--duration-slow) var(--ease-out);
 }
-.deal-card:hover .deal-card-img { transform: scale(1.03); }
+.deal-card:hover .deal-card-img { transform: scale(1.04); }
 
 /* Discount type badge — top-left (Sale Red from palette) */
 .discount-badge {
@@ -944,40 +945,99 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 1024px) {
     .store-nav { display: none; }
     .mobile-menu-btn { display: flex; }
-    .header-saved-btn { display: none; } /* bottom nav covers this on mobile */
+    .header-saved-btn { display: none; }
     .footer-inner { grid-template-columns: 1fr 1fr; }
     .deal-detail-grid { grid-template-columns: 1fr; }
+    /* Detail page: cap image height on tablet so it doesn't dominate */
+    .deal-detail-img-wrap { max-width: 480px; margin: 0 auto; }
 }
+
 @media (max-width: 768px) {
-    /* Bottom nav covers all navigation — hamburger is redundant */
+    /* Bottom nav handles all nav — hamburger hidden */
     .mobile-menu-btn { display: none !important; }
 
-    /* Mobile header: logo left, search takes remaining width */
+    /* Header: single row, logo + search, no wrap */
     .header-inner {
-        height: 56px;
-        gap: .75rem;
+        height: 54px;
+        gap: .6rem;
         flex-wrap: nowrap;
+        padding: 0;
     }
-    .logo-tag { display: none; } /* save space */
-    .logo-name { font-size: .95rem; }
-    .logo-icon { width: 30px; height: 30px; font-size: .75rem; }
-    .search-form { flex: 1; max-width: none; }
-    .search-btn { padding: .45rem .75rem; font-size: .8rem; }
-    .search-input { font-size: .85rem; padding: .55rem .6rem; }
+    .logo-tag { display: none; }
+    .logo-name { font-size: .92rem; }
+    .logo-icon { width: 28px; height: 28px; font-size: .72rem; flex-shrink: 0; }
+    .logo { gap: .4rem; flex-shrink: 0; }
+    .search-form { flex: 1; min-width: 0; max-width: none; }
+    .search-btn { padding: .45rem .7rem; font-size: .78rem; white-space: nowrap; }
+    .search-input { font-size: .85rem; padding: .5rem .55rem; min-width: 0; }
 
-    .hero-banner { padding: 2rem 1rem 1rem; }
-    .deals-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .85rem; }
+    /* Cat pill bar: sticky below header so user keeps context while scrolling */
+    .cat-pill-bar { position: sticky; top: 54px; z-index: 90; }
+
+    /* 2-column grid with comfortable gap */
+    .deals-grid { grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+
+    /* Hot deals carousel cards slightly smaller */
+    .hot-deals-scroll .deal-card { width: 210px; }
+
+    /* Toast: above bottom nav, respecting safe-area */
+    #toast-container { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); right: .75rem; }
+
+    .hero-banner { padding: 1.5rem 1rem 1rem; }
     .footer-inner { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .hot-deals-scroll .deal-card { width: 220px; }
 }
+
 @media (max-width: 480px) {
-    .container { padding: 0 .9rem; }
-    .header-inner { flex-wrap: wrap; height: auto; padding: .6rem 0; }
-    .search-form { order: 3; flex: 1 1 100%; max-width: 100%; }
-    .deals-grid { grid-template-columns: repeat(2, 1fr); gap: .65rem; }
-    .footer-inner { grid-template-columns: 1fr; }
-    .sale-price { font-size: 1.25rem; }
+    .container { padding: 0 .75rem; }
+
+    /* Header stays single row even on smallest phones — no wrap */
+    .header-inner { flex-wrap: nowrap; height: 50px; }
+    .logo-icon { width: 26px; height: 26px; font-size: .68rem; }
+    .logo-name { font-size: .85rem; }
+
+    /* Sticky cat bar offset matches header height */
+    .cat-pill-bar { top: 50px; }
+
+    /* 2-col grid, tighter gap */
+    .deals-grid { grid-template-columns: repeat(2, 1fr); gap: .55rem; }
+
+    /* Card body: tighter on small phones */
+    .deal-card-body { padding: .65rem .7rem; gap: .28rem; }
+    .deal-title { font-size: .79rem; -webkit-line-clamp: 2; }
+    .sale-price { font-size: 1.1rem; }
+    .orig-price { font-size: .72rem; }
+    .you-save { font-size: .62rem; padding: .07rem .32rem; }
+    .deal-btn { font-size: .78rem; padding: .5rem .6rem; border-radius: var(--radius-sm); }
+    .deal-store-link { font-size: .68rem; }
+    .deal-cat-link { font-size: .63rem; padding: .08rem .38rem; }
+
+    /* Save heart: keep 44px touch target via padding trick */
+    .deal-save-btn {
+        width: 32px; height: 32px; font-size: .85rem;
+        /* Expand tap area without changing visual size */
+        padding: 0;
+    }
+
+    /* Badges: slightly smaller on tiny cards */
+    .discount-badge { font-size: .68rem; padding: .18rem .5rem; }
+    .pct-badge { font-size: .7rem; padding: .18rem .48rem; }
+    .deal-timer { font-size: .64rem; padding: .16rem .45rem; }
+
+    /* Price row: allow wrapping so "Save $X" doesn't overflow */
+    .deal-prices { gap: .3rem; }
+
+    /* Hot carousel */
+    .hot-deals-scroll .deal-card { width: 175px; }
+
+    /* Toast above bottom nav */
+    #toast-container { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); right: .5rem; }
+
+    /* Chat panel: full width minus small margin */
+    #chat-panel { width: calc(100vw - 24px); right: -4px; }
+
+    /* Misc */
     .section-nav { display: none; }
+    .footer-inner { grid-template-columns: 1fr; }
 }
 
 /* ─── ANIMATIONS ────────────────────────────────────────────────────────────── */
@@ -1039,7 +1099,8 @@ button { font-family: inherit; cursor: pointer; }
 .mobile-nav-badge.show { display: flex; }
 @media (max-width: 768px) {
     .mobile-bottom-nav { display: block; }
-    body { padding-bottom: 56px; }
+    /* Account for nav bar + iOS safe area + chat FAB clearance */
+    body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ─── MOBILE DRAWER ──────────────────────────────────────────────────────────── */
@@ -1271,23 +1332,13 @@ button { font-family: inherit; cursor: pointer; }
 .store-link-card:hover { border-color: var(--orange); color: var(--orange); box-shadow: var(--shadow); }
 .store-link-card .cnt { font-size: .72rem; font-weight: 400; color: var(--slate); }
 
-/* ─── IMPROVED MOBILE CARD SIZING ────────────────────────────────────────────── */
+/* ─── IMPROVED MOBILE CARD SIZING (480px overrides merged above) ─────────────── */
 @media (max-width: 480px) {
-    .deal-card-body { padding: .7rem; gap: .3rem; }
-    .deal-title { font-size: .8rem; }
-    .sale-price { font-size: 1.1rem; }
-    .orig-price { font-size: .74rem; }
-    .you-save { font-size: .63rem; padding: .08rem .35rem; }
-    .deal-btn { font-size: .77rem; padding: .48rem .75rem; }
     .verified-badge { font-size: .63rem; padding: .18rem .45rem; }
     .price-history-link { display: none; }
-    .cat-bar-inner { padding: .45rem .9rem; gap: .3rem; }
-    .cat-chip { font-size: .74rem; padding: .28rem .7rem; }
     .hero-stat-num { font-size: 1.1rem; }
     .hero-stats-strip { gap: 1.25rem; padding: 1rem 0 1.5rem; }
     .section-title { font-size: 1.15rem !important; }
-    .hot-deals-scroll .deal-card { width: 185px; }
-    .deal-save-btn { width: 26px; height: 26px; font-size: .8rem; }
 }
 
 /* ─── TOUCH DEVICE: remove hover effects that don't work well ────────────────── */
@@ -1546,7 +1597,7 @@ button { font-family: inherit; cursor: pointer; }
     from { opacity: 0; transform: translateY(12px) scale(.96); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-@media (max-width: 480px) { #chat-panel { width: calc(100vw - 32px); right: -8px; } }
+/* chat-panel mobile sizing handled in consolidated 480px block above */
 #chat-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: .75rem 1rem; background: var(--orange); color: #fff;
