@@ -160,8 +160,9 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Search — matches Figma rounded search bar */
 .search-form {
-    flex: 1;
-    max-width: 520px;
+    flex: 1 1 auto;
+    max-width: 380px;
+    min-width: 0;
     position: relative;
 }
 .search-wrap {
@@ -239,28 +240,41 @@ button { font-family: inherit; cursor: pointer; }
 }
 .header-account-icon { width: 18px; height: 18px; flex-shrink: 0; }
 
-/* Store nav pills */
+/* Store nav pills — single row, no wrapping */
 .store-nav {
     display: flex;
     gap: .35rem;
     align-items: center;
     margin-left: auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+.store-nav-divider {
+    width: 1px;
+    height: 22px;
+    background: var(--border);
+    margin: 0 .25rem;
+    flex-shrink: 0;
 }
 .store-pill {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: .3rem;
-    padding: .35rem .9rem;
+    padding: .38rem .8rem;
     border-radius: var(--radius-xl);
-    font-size: .8rem;
+    font-size: .78rem;
     font-weight: 500;
     background: var(--white);
     border: 1.5px solid var(--border);
     color: var(--slate);
     transition: all var(--duration-fast) var(--ease-out);
     white-space: nowrap;
+    flex-shrink: 0;
 }
+.store-pill--blog { color: var(--orange); border-color: var(--orange-light); }
+.store-pill--blog:hover { background: var(--orange-light); }
 .store-pill:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-light); transform: translateY(-1px); }
 .store-pill.active { background: var(--orange); border-color: var(--orange); color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(255,107,0,.3); }
 .pill-count {
@@ -960,6 +974,12 @@ button { font-family: inherit; cursor: pointer; }
    Mobile:  [50 icon ] [──── search ──── 🔍] [avatar/person icon]
    Bottom nav handles all navigation on mobile — no hamburger needed.
 ───────────────────────────────────────────────────────────────────────────── */
+
+/* Hide pill counts at narrower widths to give pills more room */
+@media (max-width: 1200px) {
+    .store-pill .pill-count { display: none; }
+    .store-pill { padding: .38rem .7rem; font-size: .75rem; }
+}
 
 @media (max-width: 1024px) {
     .store-nav { display: none; }
