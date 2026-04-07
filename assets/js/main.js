@@ -43,22 +43,33 @@ drawer?.addEventListener('touchend', e => {
 let _savedSet = new Set((window.__savedIds || []).map(String));
 let _pendingDealId = null; // Deal to save after successful login
 
-// Event delegation: works for cards added later (infinite scroll)
+// Event delegation in CAPTURE phase — runs before any inline onclick on the
+// same button, and stopImmediatePropagation prevents the inline onclick from
+// firing too. Works for dynamically inserted cards (infinite scroll).
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('.deal-save-btn, .deal-detail-save-text');
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
     handleSaveClick(btn);
-}, true); // Use capture so we beat the <a> link inside the card
+}, true);
 
-// Backwards-compat: any inline onclick="toggleSave(this, event)" still works
+// Backwards-compat shim: cached pages may still have inline onclick attribute
+// that calls toggleSave. We make it a no-op since delegation already handled it.
+// If for some reason delegation didn't run (e.g. very old browser), fall through.
+let _justHandled = null;
 function toggleSave(btn, event) {
     if (event) { event.preventDefault(); event.stopPropagation(); }
+    // If the delegation handler just processed this exact click, do nothing.
+    if (_justHandled === btn) { _justHandled = null; return; }
     handleSaveClick(btn);
 }
 
 function handleSaveClick(btn) {
+    _justHandled = btn; // mark so backwards-compat toggleSave skips
+    setTimeout(() => { if (_justHandled === btn) _justHandled = null; }, 100);
+
     const id = String(btn.dataset.id || '');
     if (!id) { console.warn('[save] no data-id on button'); return; }
 

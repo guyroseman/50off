@@ -136,15 +136,10 @@ $badgeClass = match(true) {
             <!-- Save + Share row -->
             <div class="deal-actions">
                 <button
+                    type="button"
                     class="btn-secondary deal-detail-save-text"
                     id="detail-save-btn"
                     data-id="<?= (int)$deal['id'] ?>"
-                    data-title="<?= h(mb_substr($deal['title'], 0, 60)) ?>"
-                    data-price="<?= h(number_format((float)$deal['sale_price'], 2)) ?>"
-                    data-pct="<?= $pct ?>"
-                    data-img="<?= h($dealImgSrc) ?>"
-                    data-link="/deal.php?id=<?= $deal['id'] ?>"
-                    onclick="toggleSave(this, event)"
                 >
                     <span id="detail-save-label">♡ Save Deal</span>
                 </button>

@@ -53,12 +53,13 @@ $showTimer = $pct >= 60 || !empty($deal['expires_at']); // only hot deals get ti
         <!-- Percent badge — top-left -->
         <span class="pct-badge" style="left:10px;right:auto">-<?= $pct ?>%</span>
 
-        <!-- Save heart — outside <a> so clicks don't navigate -->
+        <!-- Save heart — outside <a> so clicks don't navigate.
+             No inline onclick: handled by event delegation in main.js -->
         <button
+            type="button"
             class="deal-save-btn"
             data-id="<?= (int)$deal['id'] ?>"
             aria-label="Save deal"
-            onclick="toggleSave(this, event)"
         >♡</button>
 
         <?php if($showTimer): ?>
