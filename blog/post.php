@@ -340,6 +340,11 @@ $crossLinks = array_filter($allPosts, fn($p) => $p['slug'] !== $post['slug']);
 .related-card-cat{font-size:.65rem;font-weight:700;text-transform:uppercase;color:#ef4444;margin-bottom:.25rem;display:block}
 .related-card-title{font-size:.82rem;font-weight:600;color:#111827;line-height:1.35}
 
+/* ── Live deals section in post ─────────────────────────────────── */
+.post-live-deals{background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:1.25rem 1.5rem;margin:2rem 0}
+.post-live-deals-h2{font-size:1.05rem!important;font-weight:800!important;color:#111827!important;margin:0 0 .2rem!important;padding:0!important;border:none!important}
+.post-live-deals-sub{font-size:.78rem;color:#9a3412;margin:0 0 .85rem;font-weight:500}
+
 /* ── Post footer ─────────────────────────────────────────────────── */
 .post-affiliate-note{font-size:.74rem;color:#9ca3af;background:#f9fafb;padding:.75rem 1rem;border-radius:8px;margin-top:2rem;line-height:1.55;border:1px solid #f3f4f6}
 .post-share{display:flex;align-items:center;gap:.65rem;margin:1.5rem 0;flex-wrap:wrap}
@@ -409,6 +414,48 @@ $crossLinks = array_filter($allPosts, fn($p) => $p['slug'] !== $post['slug']);
         <div class="post-body">
             <?= $renderedContent ?>
         </div>
+
+        <!-- ── Live deals from this post's category ─────────────────── -->
+        <?php
+        $postCatSlug  = $post['category'];
+        $liveDeals    = getDeals(['category' => $postCatSlug, 'sort' => 'discount', 'limit' => 4]);
+        // Fallback: if category has no deals, show top deals overall
+        if (empty($liveDeals)) $liveDeals = getDeals(['sort' => 'discount', 'limit' => 4]);
+        $catBrowseUrl = isset($catLinks[$postCatSlug]) ? $catLinks[$postCatSlug][1] : '/';
+        $catLabel     = isset($catLinks[$postCatSlug]) ? $catLinks[$postCatSlug][0] : '🏷️ All';
+        ?>
+        <?php if ($liveDeals): ?>
+        <section class="post-live-deals" aria-label="Hot deals">
+            <h2 class="post-live-deals-h2">🔥 Hot <?= h(ucfirst($postCatSlug)) ?> Deals Right Now</h2>
+            <p class="post-live-deals-sub">Verified 50%+ off — updated every 3 hours</p>
+            <div class="post-deals-grid">
+            <?php foreach ($liveDeals as $d):
+                $dPct   = (int)$d['discount_pct'];
+                $dTitle = mb_substr($d['title'], 0, 65) . (mb_strlen($d['title']) > 65 ? '…' : '');
+                $dImg   = !empty($d['image_url']) ? $d['image_url'] : null;
+            ?>
+                <a href="/deal.php?id=<?= (int)$d['id'] ?>" class="post-deal-card">
+                    <div class="post-deal-img">
+                        <?php if ($dImg): ?>
+                            <img src="<?= h($dImg) ?>" alt="<?= h($dTitle) ?>" loading="lazy">
+                        <?php else: ?>
+                            <div class="post-deal-no-img">🏷️</div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="post-deal-info">
+                        <span class="post-deal-badge"><?= $dPct ?>% OFF</span>
+                        <span class="post-deal-title"><?= h($dTitle) ?></span>
+                        <span class="post-deal-price">$<?= number_format((float)$d['sale_price'], 2) ?> <s style="color:#9ca3af;font-size:.8em">$<?= number_format((float)$d['original_price'], 2) ?></s></span>
+                        <span class="post-deal-store"><?= ucfirst(h($d['store'])) ?></span>
+                    </div>
+                </a>
+            <?php endforeach; ?>
+            </div>
+            <p style="text-align:center;margin:.75rem 0 0">
+                <a href="<?= h($catBrowseUrl) ?>" class="browse-all-link">See all <?= $catLabel ?> deals at 50%+ off →</a>
+            </p>
+        </section>
+        <?php endif; ?>
 
         <!-- Browse categories quick links -->
         <div style="margin:1.5rem 0">

@@ -54,7 +54,33 @@ if (!empty($deal['rating'])) {
         'reviewCount' => max(1, (int)$deal['review_count']),
     ];
 }
-$pageJsonLd = '<script type="application/ld+json">' . json_encode($jsonLd, JSON_UNESCAPED_SLASHES) . '</script>';
+// BreadcrumbList schema
+$breadcrumbs = [
+    ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home',      'item' => 'https://50offsale.com/'],
+    ['@type' => 'ListItem', 'position' => 2, 'name' => ucfirst($deal['store']) . ' Deals', 'item' => 'https://50offsale.com/?store=' . urlencode($deal['store'])],
+];
+if ($hasCat) {
+    $breadcrumbs[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $catLabel . ' Deals', 'item' => 'https://50offsale.com/?category=' . urlencode($deal['category'])];
+    $breadcrumbs[] = ['@type' => 'ListItem', 'position' => 4, 'name' => mb_substr($deal['title'], 0, 60)];
+} else {
+    $breadcrumbs[] = ['@type' => 'ListItem', 'position' => 3, 'name' => mb_substr($deal['title'], 0, 60)];
+}
+$breadcrumbLd = ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $breadcrumbs];
+
+// Better meta title and description for deal pages
+$pageTitle       = $deal['title'] . ' — ' . $pct . '% Off';
+$_pageMetaDesc   = sprintf(
+    '%s now $%s (was $%s) — %d%% off at %s. Verified deal, updated %s.',
+    mb_substr($deal['title'], 0, 60),
+    number_format((float)$deal['sale_price'], 2),
+    number_format((float)$deal['original_price'], 2),
+    $pct,
+    ucfirst($deal['store']),
+    date('M j, Y', strtotime($deal['scraped_at']))
+);
+
+$pageJsonLd = '<script type="application/ld+json">' . json_encode($jsonLd, JSON_UNESCAPED_SLASHES) . '</script>'
+            . '<script type="application/ld+json">' . json_encode($breadcrumbLd, JSON_UNESCAPED_SLASHES) . '</script>';
 
 include 'includes/header.php';
 echo $pageJsonLd;

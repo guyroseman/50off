@@ -34,9 +34,13 @@ $isBlog = str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/blog');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <?php
     $_canonicalUrl = 'https://50offsale.com' . strtok($_SERVER['REQUEST_URI'] ?? '/', '?');
-    $_metaDesc = isset($pageTitle) && $pageTitle !== 'Top 50%+ Off Deals Today'
-        ? h($pageTitle) . ' — verified 50%+ off deals updated every 3 hours.'
-        : 'Only 50%+ off deals from Amazon, Target, eBay &amp; 6pm. Verified discounts updated every 3 hours.';
+    if (isset($_pageMetaDesc)) {
+        $_metaDesc = h($_pageMetaDesc);
+    } elseif (isset($pageTitle) && !in_array($pageTitle, ['Top 50%+ Off Deals Today', 'Top 50%+ Off Deals Today — Amazon, Target & eBay'])) {
+        $_metaDesc = h($pageTitle) . ' — verified 50%+ off deals updated every 3 hours.';
+    } else {
+        $_metaDesc = 'Only 50%+ off deals from Amazon, Target, eBay &amp; 6pm. Verified discounts updated every 3 hours.';
+    }
     ?>
     <title><?= isset($pageTitle) ? h($pageTitle) . ' — ' : '' ?>50OFF — Don't search for products, search for discounts</title>
     <meta name="description" content="<?= $_metaDesc ?>">
