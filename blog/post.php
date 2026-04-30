@@ -7,7 +7,12 @@ require_once ROOT . '/includes/blog_functions.php';
 $slug = trim(getParam('slug', ''));
 if (!$slug) { header('Location: /blog/'); exit; }
 
-$post = getBlogPost($slug);
+try {
+    $post = getBlogPost($slug);
+} catch (\Throwable $e) {
+    error_log('Blog post fetch error: ' . $e->getMessage());
+    $post = null;
+}
 if (!$post) {
     http_response_code(404);
     $pageTitle = 'Post Not Found';
@@ -17,8 +22,14 @@ if (!$post) {
     exit;
 }
 
-$related      = getRelatedPosts($post['id'], $post['category'], 3);
-$allPosts     = getBlogPosts(8, 0); // For internal links
+try {
+    $related  = getRelatedPosts((int)$post['id'], (string)($post['category'] ?? ''), 3);
+    $allPosts = getBlogPosts(8, 0);
+} catch (\Throwable $e) {
+    error_log('Blog post related error: ' . $e->getMessage());
+    $related  = [];
+    $allPosts = [];
+}
 $metaTitle    = $post['meta_title'] ?: ($post['title'] . ' — 50OFF Blog');
 $metaDesc     = $post['meta_desc'] ?: $post['excerpt'];
 $ogImage      = $post['og_image'] ?: 'https://50offsale.com/assets/img/og-blog.png';
@@ -417,10 +428,14 @@ $crossLinks = array_filter($allPosts, fn($p) => $p['slug'] !== $post['slug']);
 
         <!-- ── Live deals from this post's category ─────────────────── -->
         <?php
-        $postCatSlug  = $post['category'];
-        $liveDeals    = getDeals(['category' => $postCatSlug, 'sort' => 'discount', 'limit' => 4]);
-        // Fallback: if category has no deals, show top deals overall
-        if (empty($liveDeals)) $liveDeals = getDeals(['sort' => 'discount', 'limit' => 4]);
+        $postCatSlug = (string)($post['category'] ?? '');
+        $liveDeals   = [];
+        try {
+            $liveDeals = getDeals(['category' => $postCatSlug, 'sort' => 'discount', 'limit' => 4]);
+            if (empty($liveDeals)) $liveDeals = getDeals(['sort' => 'discount', 'limit' => 4]);
+        } catch (\Throwable $e) {
+            error_log('Blog post live deals error: ' . $e->getMessage());
+        }
         $catBrowseUrl = isset($catLinks[$postCatSlug]) ? $catLinks[$postCatSlug][1] : '/';
         $catLabel     = isset($catLinks[$postCatSlug]) ? $catLinks[$postCatSlug][0] : '🏷️ All';
         ?>
@@ -430,9 +445,14 @@ $crossLinks = array_filter($allPosts, fn($p) => $p['slug'] !== $post['slug']);
             <p class="post-live-deals-sub">Verified 50%+ off — updated every 3 hours</p>
             <div class="post-deals-grid">
             <?php foreach ($liveDeals as $d):
-                $dPct   = (int)$d['discount_pct'];
-                $dTitle = mb_substr($d['title'], 0, 65) . (mb_strlen($d['title']) > 65 ? '…' : '');
-                $dImg   = !empty($d['image_url']) ? $d['image_url'] : null;
+                if (!is_array($d) || empty($d['id'])) continue;
+                $dPct      = (int)($d['discount_pct'] ?? 0);
+                $dTitleRaw = (string)($d['title'] ?? '');
+                $dTitle    = mb_substr($dTitleRaw, 0, 65) . (mb_strlen($dTitleRaw) > 65 ? '…' : '');
+                $dImg      = !empty($d['image_url']) ? (string)$d['image_url'] : '';
+                $dSale     = (float)($d['sale_price'] ?? 0);
+                $dOrig     = (float)($d['original_price'] ?? 0);
+                $dStore    = (string)($d['store'] ?? '');
             ?>
                 <a href="/deal.php?id=<?= (int)$d['id'] ?>" class="post-deal-card">
                     <div class="post-deal-img">
@@ -445,8 +465,8 @@ $crossLinks = array_filter($allPosts, fn($p) => $p['slug'] !== $post['slug']);
                     <div class="post-deal-info">
                         <span class="post-deal-badge"><?= $dPct ?>% OFF</span>
                         <span class="post-deal-title"><?= h($dTitle) ?></span>
-                        <span class="post-deal-price">$<?= number_format((float)$d['sale_price'], 2) ?> <s style="color:#9ca3af;font-size:.8em">$<?= number_format((float)$d['original_price'], 2) ?></s></span>
-                        <span class="post-deal-store"><?= ucfirst(h($d['store'])) ?></span>
+                        <span class="post-deal-price">$<?= number_format($dSale, 2) ?> <s style="color:#9ca3af;font-size:.8em">$<?= number_format($dOrig, 2) ?></s></span>
+                        <span class="post-deal-store"><?= ucfirst(h($dStore)) ?></span>
                     </div>
                 </a>
             <?php endforeach; ?>

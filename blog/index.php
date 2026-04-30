@@ -9,9 +9,16 @@ $page      = max(1, (int) getParam('page', 1));
 $catFilter = getParam('cat', '');
 $offset    = ($page - 1) * $perPage;
 
-$posts      = getBlogPosts($perPage, $offset, $catFilter);
-$totalPosts = countBlogPosts($catFilter);
-$totalPages = (int) ceil($totalPosts / $perPage);
+// Defensive: if any DB query throws, render an empty blog instead of crashing
+try {
+    $posts      = getBlogPosts($perPage, $offset, $catFilter);
+    $totalPosts = countBlogPosts($catFilter);
+} catch (\Throwable $e) {
+    error_log('Blog index DB error: ' . $e->getMessage());
+    $posts      = [];
+    $totalPosts = 0;
+}
+$totalPages = $perPage > 0 ? (int) ceil($totalPosts / $perPage) : 1;
 
 // Category-specific metadata
 $catMeta = [
@@ -216,14 +223,16 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
 </div>
 
 <!-- Featured post (first post, no filter, page 1) -->
-<?php if ($featuredPost):
+<?php if (is_array($featuredPost)):
     $fCat   = (string)($featuredPost['category'] ?? 'guide');
     $fSlug  = (string)($featuredPost['slug']     ?? '');
     $fTitle = (string)($featuredPost['title']    ?? 'Untitled');
     $fImg   = (string)($featuredPost['og_image'] ?? '');
     $fExc   = (string)($featuredPost['excerpt']  ?? '');
-    $fPub   = (string)($featuredPost['published_at'] ?? date('c'));
+    $fPub   = (string)($featuredPost['published_at'] ?? '');
     $fViews = (int)($featuredPost['view_count'] ?? 0);
+    $fPubTs = $fPub ? strtotime($fPub) : false;
+    if (!$fPubTs) $fPubTs = time();
 ?>
 <div class="blog-featured">
     <?php if ($fImg): ?>
@@ -242,7 +251,7 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
         <a href="/blog/<?= h($fSlug) ?>" class="blog-featured-title"><?= h($fTitle) ?></a>
         <p class="blog-featured-excerpt"><?= h(mb_substr($fExc, 0, 180)) ?>…</p>
         <div class="blog-featured-meta">
-            <span>📅 <?= date('F j, Y', strtotime($fPub) ?: time()) ?></span>
+            <span>📅 <?= date('F j, Y', $fPubTs) ?></span>
             <span>👁 <?= number_format($fViews) ?> views</span>
         </div>
         <a href="/blog/<?= h($fSlug) ?>" class="blog-featured-cta">Read Guide → </a>
@@ -251,22 +260,29 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
 <?php endif; ?>
 
 <?php if (empty($posts) && !$featuredPost): ?>
-<div class="blog-empty">No posts yet — check back soon!</div>
+<div class="blog-empty">
+    <p style="font-size:1.1rem;font-weight:600;color:#374151;margin-bottom:.5rem">No posts yet — check back soon!</p>
+    <p style="font-size:.9rem">In the meantime, <a href="/" style="color:#ef4444;font-weight:600">browse all 50%+ off deals →</a></p>
+</div>
 <?php elseif (!empty($posts)): ?>
 <div class="blog-grid">
 <?php foreach ($posts as $post):
+    if (!is_array($post)) continue;
     $pCat   = (string)($post['category'] ?? 'guide');
     $pSlug  = (string)($post['slug']     ?? '');
     $pTitle = (string)($post['title']    ?? 'Untitled');
     $pImg   = (string)($post['og_image'] ?? '');
     $pExc   = (string)($post['excerpt']  ?? '');
-    $pPub   = (string)($post['published_at'] ?? date('c'));
+    $pPub   = (string)($post['published_at'] ?? '');
+    $pPubTs = $pPub ? strtotime($pPub) : false;
+    if (!$pPubTs) $pPubTs = time();
+    if (!$pSlug) continue; // skip rows missing critical data
     $emoji    = $pCat === 'roundup' ? '🔥' : '📖';
     $words    = str_word_count(strip_tags($pExc));
     $readMins = max(3, (int)round($words * 10 / 220));
 ?>
 <article class="blog-card" itemscope itemtype="https://schema.org/Article">
-    <meta itemprop="datePublished" content="<?= date('c', strtotime($pPub) ?: time()) ?>">
+    <meta itemprop="datePublished" content="<?= date('c', $pPubTs) ?>">
     <meta itemprop="author" content="50OFF Team">
     <?php if ($pImg): ?>
     <img src="<?= h($pImg) ?>" alt="<?= h($pTitle) ?>" class="blog-card-img" loading="lazy" itemprop="image">
@@ -286,7 +302,7 @@ $featuredPost = ($page === 1 && !$catFilter && !empty($posts)) ? array_shift($po
         <a href="/blog/<?= h($pSlug) ?>" class="blog-card-title" itemprop="name headline"><?= h($pTitle) ?></a>
         <p class="blog-card-excerpt"><?= h(mb_substr($pExc, 0, 125)) ?>…</p>
         <div class="blog-card-footer">
-            <span class="blog-card-date"><?= date('M j, Y', strtotime($pPub) ?: time()) ?></span>
+            <span class="blog-card-date"><?= date('M j, Y', $pPubTs) ?></span>
             <a href="/blog/<?= h($pSlug) ?>" class="blog-read-more">Read more →</a>
         </div>
     </div>
